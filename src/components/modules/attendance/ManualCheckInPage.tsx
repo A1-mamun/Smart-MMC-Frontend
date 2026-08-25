@@ -7,21 +7,27 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  useGetAllStudentsQuery,
-} from "@/redux/features/student/student";
+import { useGetAllStudentsQuery } from "@/redux/features/student/student";
 import { useManualCheckInMutation } from "@/redux/features/attendance/attendance";
 import { TStudent } from "@/types/student";
 
 const ManualCheckInPage = () => {
   const router = useRouter();
   const [search, setSearch] = useState("");
-  const { data, isFetching } = useGetAllStudentsQuery({ searchTerm: search, limit: 10, page: 1 }, {
-    skip: !search,
-  });
+  const { data, isFetching } = useGetAllStudentsQuery(
+    { searchTerm: search, limit: 10, page: 1 },
+    {
+      skip: !search,
+    },
+  );
   const [manualCheckIn, { isLoading }] = useManualCheckInMutation();
   const [checkingId, setCheckingId] = useState<string | null>(null);
-  const [results, setResults] = useState<Record<string, { message: string; isFirstCheckIn: boolean; dueAmount: number }>>({});
+  const [results, setResults] = useState<
+    Record<
+      string,
+      { message: string; isFirstCheckIn: boolean; dueAmount: number }
+    >
+  >({});
 
   const handleCheckIn = async (student: TStudent) => {
     setCheckingId(student.id);
@@ -51,7 +57,8 @@ const ManualCheckInPage = () => {
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Manual Check-In</h2>
         <p className="text-sm text-muted-foreground">
-          Search for a student by name, mobile, or Student ID and mark their attendance.
+          Search for a student by name, mobile, or Student ID and mark their
+          attendance.
         </p>
       </div>
 
@@ -89,15 +96,25 @@ const ManualCheckInPage = () => {
                     {student.user.studentId} • {student.mobile}
                   </p>
                   {result && (
-                    <p className="text-xs mt-1">
-                      <Badge variant={result.isFirstCheckIn ? "success" : "secondary"}>
+                    <div className="text-xs mt-1">
+                      <Badge
+                        variant={
+                          result.isFirstCheckIn ? "success" : "secondary"
+                        }
+                      >
                         {result.message}
                       </Badge>
-                    </p>
+                    </div>
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => router.push(`/dashboard/students/${student.id}`)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      router.push(`/dashboard/students/${student.id}`)
+                    }
+                  >
                     View
                   </Button>
                   <Button

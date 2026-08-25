@@ -24,7 +24,13 @@ import { Input } from "@/components/ui/input";
 import { hscBatches } from "@/constants/batches";
 
 const AttendancePage = () => {
-  const [filters, setFilters] = useState<{ page: number; limit: number; hscBatch?: string; batchDay?: string; batchTime?: string }>({
+  const [filters, setFilters] = useState<{
+    page: number;
+    limit: number;
+    hscBatch?: string;
+    batchDay?: string;
+    batchTime?: string;
+  }>({
     page: 1,
     limit: 30,
   });
@@ -36,7 +42,8 @@ const AttendancePage = () => {
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Attendance</h2>
           <p className="text-sm text-muted-foreground">
-            {dayjs().format("dddd, MMMM D, YYYY")} • {data?.meta?.total || 0} present
+            {dayjs().format("dddd, MMMM D, YYYY")} • {data?.meta?.total || 0}{" "}
+            present
           </p>
         </div>
         <Button onClick={() => refetch()}>Refresh</Button>
@@ -45,9 +52,15 @@ const AttendancePage = () => {
       <div className="flex flex-wrap gap-3">
         <Select
           value={filters.hscBatch || "_all"}
-          onValueChange={(v) => setFilters({ ...filters, hscBatch: v === "_all" ? undefined : v, page: 1 })}
+          onValueChange={(v) =>
+            setFilters({
+              ...filters,
+              hscBatch: v === "_all" ? undefined : v,
+              page: 1,
+            })
+          }
         >
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-45">
             <SelectValue placeholder="HSC Batch" />
           </SelectTrigger>
           <SelectContent>
@@ -60,16 +73,28 @@ const AttendancePage = () => {
           </SelectContent>
         </Select>
         <Input
-          className="w-[180px]"
+          className="w-45"
           placeholder="Day (e.g. Saturday)"
           value={filters.batchDay || ""}
-          onChange={(e) => setFilters({ ...filters, batchDay: e.target.value || undefined, page: 1 })}
+          onChange={(e) =>
+            setFilters({
+              ...filters,
+              batchDay: e.target.value || undefined,
+              page: 1,
+            })
+          }
         />
         <Input
-          className="w-[180px]"
+          className="w-45"
           placeholder="Time (e.g. 4:00 PM)"
           value={filters.batchTime || ""}
-          onChange={(e) => setFilters({ ...filters, batchTime: e.target.value || undefined, page: 1 })}
+          onChange={(e) =>
+            setFilters({
+              ...filters,
+              batchTime: e.target.value || undefined,
+              page: 1,
+            })
+          }
         />
       </div>
 
@@ -91,13 +116,19 @@ const AttendancePage = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-20 text-center text-muted-foreground">
+                    <TableCell
+                      colSpan={4}
+                      className="h-20 text-center text-muted-foreground"
+                    >
                       Loading...
                     </TableCell>
                   </TableRow>
                 ) : data?.data?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-20 text-center text-muted-foreground">
+                    <TableCell
+                      colSpan={4}
+                      className="h-20 text-center text-muted-foreground"
+                    >
                       No one has checked in yet today.
                     </TableCell>
                   </TableRow>
@@ -110,7 +141,9 @@ const AttendancePage = () => {
                       <TableCell className="font-mono text-xs">
                         {a.student.user.studentId}
                       </TableCell>
-                      <TableCell>{dayjs(a.checkInAt).format("h:mm A")}</TableCell>
+                      <TableCell>
+                        {dayjs(a.checkInAt).format("h:mm A")}
+                      </TableCell>
                       <TableCell>
                         <Badge variant="outline">{a.method}</Badge>
                       </TableCell>

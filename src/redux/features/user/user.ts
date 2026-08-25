@@ -37,6 +37,13 @@ const userApi = baseApi.injectEndpoints({
         });
         return { url: `/user?${query.toString()}`, method: "GET" };
       },
+      providesTags: (result) =>
+        result?.data
+          ? [
+              ...result.data.map((u) => ({ type: "Dashboard" as const, id: u.id })),
+              { type: "Dashboard" as const, id: "LIST" },
+            ]
+          : [{ type: "Dashboard" as const, id: "LIST" }],
     }),
     getUserById: build.query<TApiResponse<TUserListItem>, string>({
       query: (id) => ({ url: `/user/${id}`, method: "GET" }),
@@ -47,6 +54,7 @@ const userApi = baseApi.injectEndpoints({
         method: "POST",
         body: data,
       }),
+      invalidatesTags: [{ type: "Dashboard", id: "LIST" }, "Activity"],
     }),
     updateUser: build.mutation<TApiResponse<TUserListItem>, { id: string; data: TUpdateUserPayload }>({
       query: ({ id, data }) => ({
@@ -54,9 +62,19 @@ const userApi = baseApi.injectEndpoints({
         method: "PATCH",
         body: data,
       }),
+      invalidatesTags: (_result, _err, { id }) => [
+        { type: "Dashboard", id: "LIST" },
+        { type: "Dashboard", id },
+        "Activity",
+      ],
     }),
     deleteUser: build.mutation<TApiResponse<null>, string>({
       query: (id) => ({ url: `/user/${id}`, method: "DELETE" }),
+      invalidatesTags: (_result, _err, id) => [
+        { type: "Dashboard", id: "LIST" },
+        { type: "Dashboard", id },
+        "Activity",
+      ],
     }),
   }),
 });

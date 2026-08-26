@@ -165,6 +165,7 @@ export type TStudentQuery = {
   hscBatch?: THscBatch;
   courseId?: string;
   batchDay?: TBatchDay;
+  batchDayId?: string;
   batchTime?: TBatchTime;
   district?: string;
   page?: number;

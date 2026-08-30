@@ -80,7 +80,19 @@ const StudentsTable = ({
               const { totalFee, totalPaid, totalDue } = computeTotals(student);
               const hasEnrollments = (student.studentCourses?.length ?? 0) > 0;
               const isFullyPaid = hasEnrollments && totalDue <= 0;
+              const isPartial =
+                hasEnrollments && totalPaid > 0 && totalDue > 0;
+              const isPending = hasEnrollments && totalPaid <= 0;
               const hasDue = totalDue > 0;
+              const status =
+                student.paymentStatus ??
+                (isFullyPaid
+                  ? "PAID"
+                  : isPartial
+                  ? "PARTIAL"
+                  : isPending
+                  ? "PENDING"
+                  : "PENDING");
 
               return (
                 <TableRow key={student.id}>
@@ -119,18 +131,44 @@ const StudentsTable = ({
                   <TableCell>
                     {!hasEnrollments ? (
                       <span className="text-xs text-muted-foreground">No enrollment</span>
-                    ) : isFullyPaid ? (
-                      <Badge variant="success" className="gap-1">
-                        <CheckCircle2 className="h-3 w-3" />
-                        Paid ৳{totalPaid.toLocaleString()}
-                      </Badge>
+                    ) : status === "PAID" ? (
+                      <div className="space-y-0.5">
+                        <Badge variant="success" className="gap-1">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Paid
+                        </Badge>
+                        <div className="text-xs text-muted-foreground">
+                          ৳{totalPaid.toLocaleString()} / ৳{totalFee.toLocaleString()}
+                        </div>
+                      </div>
+                    ) : status === "PARTIAL" ? (
+                      <div className="space-y-0.5">
+                        <Badge
+                          variant="outline"
+                          className="gap-1 border-amber-500 text-amber-700 dark:text-amber-400"
+                        >
+                          Partial
+                        </Badge>
+                        <div className="text-xs">
+                          <span className="text-emerald-600">
+                            Paid ৳{totalPaid.toLocaleString()}
+                          </span>
+                          <span className="text-muted-foreground"> / </span>
+                          <span className="text-destructive font-medium">
+                            Due ৳{totalDue.toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
                     ) : (
                       <div className="space-y-0.5">
-                        <div className="text-destructive font-semibold">
-                          Due ৳{totalDue.toLocaleString()}
-                        </div>
+                        <Badge
+                          variant="outline"
+                          className="gap-1 border-destructive text-destructive"
+                        >
+                          Pending
+                        </Badge>
                         <div className="text-xs text-muted-foreground">
-                          Paid ৳{totalPaid.toLocaleString()} / ৳{totalFee.toLocaleString()}
+                          Due ৳{totalDue.toLocaleString()}
                         </div>
                       </div>
                     )}

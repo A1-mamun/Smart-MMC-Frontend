@@ -4,12 +4,21 @@ import { TActivityLog } from "./activityLog";
 export type TAdminDashboardCards = {
   totalStudents: number;
   fullyPaidStudents: number;
+  partialPaymentStudents: number;
   pendingPaymentStudents: number;
   overdueRecords: number;
   collectedThisMonth: number;
   collectedAllTime: number;
   todayAttendance: number;
   monthAttendance: number;
+};
+
+export type TPaymentStatus = 'PAID' | 'PARTIAL' | 'PENDING';
+
+export type TStudentPaymentSummary = {
+  totalFee: number;
+  totalPaid: number;
+  totalDue: number;
 };
 
 export type TAdminBatchGroup = {

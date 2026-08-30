@@ -79,7 +79,7 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-5">
         <StatCard
           label="Total Students"
           value={cards.totalStudents}
@@ -87,10 +87,16 @@ const AdminDashboard = () => {
           sublabel="Currently enrolled"
         />
         <StatCard
-          label="Completed Payments"
+          label="Fully Paid"
           value={cards.fullyPaidStudents}
           icon={CheckCircle2}
           sublabel="Students fully paid"
+        />
+        <StatCard
+          label="Partially Paid"
+          value={cards.partialPaymentStudents ?? 0}
+          icon={Wallet}
+          sublabel="Students with partial payment"
         />
         <StatCard
           label="Pending Payments"

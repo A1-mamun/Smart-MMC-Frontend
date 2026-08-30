@@ -55,11 +55,26 @@ export type TStudentBatch = {
   hscBatch: THscBatch;
 };
 
+export type TPaymentStatus = 'PAID' | 'PARTIAL' | 'PENDING';
+
+export type TCoursePaymentStatus = {
+  studentCourseId: string;
+  courseName: string;
+  status: TPaymentStatus;
+};
+
 export type TStudent = {
   id: string;
   college?: string | null;
   mobile: string;
   bloodGroup: TBloodGroup;
+  paymentStatus?: TPaymentStatus;
+  paymentSummary?: {
+    totalFee: number;
+    totalPaid: number;
+    totalDue: number;
+  };
+  coursePaymentStatuses?: TCoursePaymentStatus[];
   fatherName: string;
   fatherOccupation: string;
   fatherMobile: string;

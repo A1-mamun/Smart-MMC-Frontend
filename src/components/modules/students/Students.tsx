@@ -21,6 +21,10 @@ import {
 } from "@/redux/features/course/course";
 import StudentsTable from "./StudentsTable";
 import RecordPaymentModal from "@/components/modules/payments/RecordPaymentModal";
+import PaymentReceiptView from "@/components/modules/payments/PaymentReceiptView";
+import { useAppSelector } from "@/redux/hooks";
+import { useCurrentUser } from "@/redux/features/auth/authSlice";
+import type { TPaymentRecord } from "@/types/payment";
 
 type StudentsProps = {
   studentsData: TStudent[];
@@ -46,6 +50,9 @@ const Students = ({
   const router = useRouter();
   const [search, setSearch] = useState(query.searchTerm || "");
   const [payingStudent, setPayingStudent] = useState<TStudent | null>(null);
+  // Drives the full-page receipt overlay shown right after a successful payment.
+  const [recordedPayment, setRecordedPayment] = useState<TPaymentRecord | null>(null);
+  const currentUser = useAppSelector(useCurrentUser);
 
   // Local state for the cascading filter.
   const [courseId, setCourseId] = useState<string>(query.courseId || "");
@@ -346,6 +353,28 @@ const Students = ({
             toast.success("Payment recorded");
             refetch();
           }}
+          onRecorded={(p) => setRecordedPayment(p)}
+        />
+      )}
+
+      {recordedPayment && payingStudent && (
+        <PaymentReceiptView
+          payment={recordedPayment}
+          studentName={payingStudent.user.name}
+          studentId={payingStudent.user.studentId}
+          studentMobile={payingStudent.mobile}
+          studentBatch={(payingStudent.batches ?? [])
+            .map((b) => `HSC ${String(b.hscBatch).replace(/^BATCH_/, "")}`)
+            .join(", ") || undefined}
+          paymentStatus={payingStudent.paymentStatus}
+          courseName={
+            payingStudent.studentCourses?.find(
+              (sc) => sc.id === recordedPayment.studentCourseId,
+            )?.course?.name
+          }
+          collectedByName={currentUser?.name}
+          collectedByRole={currentUser?.role}
+          onBack={() => setRecordedPayment(null)}
         />
       )}
     </div>

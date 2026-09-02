@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Wallet } from "lucide-react";
 import {
   useGetAllPaymentsQuery,
@@ -23,10 +23,28 @@ import { formatPaymentMethodLabel } from "@/constants/labels";
 import RecordPaymentModal, {
   type TCoursePaymentSummary,
 } from "@/components/modules/payments/RecordPaymentModal";
+import PaymentReceiptView from "@/components/modules/payments/PaymentReceiptView";
+import PrintReceiptButton from "@/components/modules/payments/PrintReceiptButton";
+import { printPaymentReceipt } from "@/utils/printReceipt";
+import { useAppSelector } from "@/redux/hooks";
+import { useCurrentUser } from "@/redux/features/auth/authSlice";
+import type { TPaymentRecord } from "@/types/payment";
 
 type PayTarget = {
   studentId: string;
   preselect: TCoursePaymentSummary;
+};
+
+type ReceiptTarget = {
+  payment: TPaymentRecord;
+  studentName: string;
+  studentId: string;
+  studentMobile?: string;
+  studentBatch?: string;
+  paymentStatus?: "PAID" | "PARTIAL" | "PENDING";
+  courseName?: string;
+  fee?: number;
+  previouslyPaid?: number;
 };
 
 const PaymentsPage = () => {
@@ -48,12 +66,116 @@ const PaymentsPage = () => {
   } = useGetDuePaymentsQuery(undefined, { refetchOnMountOrArgChange: true });
 
   const [payTarget, setPayTarget] = useState<PayTarget | null>(null);
+  // Drives the receipt dialog. Set both when a payment is just recorded
+  // (auto-open) and when the user clicks a row's Print action.
+  const [receiptTarget, setReceiptTarget] =
+    useState<ReceiptTarget | null>(null);
+  // When the user clicks a row's printer icon we set the row's payment here
+  // and trigger a `useGetStudentByIdQuery` (below) so we can build a full
+  // receipt with mobile / batch / status / breakdown.
+  const [rowPrintTarget, setRowPrintTarget] = useState<TPaymentRecord | null>(
+    null,
+  );
+  const currentUser = useAppSelector(useCurrentUser);
+
+  // Build a rich receipt from a payment + full student profile. Used by both
+  // the row-print flow (after fetching the student) and the post-success flow
+  // (after `onRecorded` fires with the student already loaded).
+  const buildReceiptFromStudent = (
+    payment: TPaymentRecord,
+    student: NonNullable<typeof studentDetail>["data"] | null,
+  ): ReceiptTarget | null => {
+    if (!student) return null;
+
+    const scId = payment.studentCourseId ?? undefined;
+    const summary = (student.studentCourses ?? [])
+      .filter((sc) => !sc.isCompleted)
+      .map((sc) => {
+        const paid = (student.payments ?? [])
+          .filter((p) => p.studentCourseId === sc.id)
+          .reduce((sum, p) => sum + Number(p.amount), 0);
+        return {
+          studentCourseId: sc.id,
+          courseName: sc.course?.name ?? "Course",
+          fee: Number(sc.course?.fee ?? 0),
+          paid,
+        };
+      })
+      .find((s) => s.studentCourseId === scId);
+
+    const batchLabel = (student.batches ?? [])
+      .map((b) => `HSC ${String(b.hscBatch).replace(/^BATCH_/, "")}`)
+      .join(", ");
+
+    return {
+      payment,
+      studentName: student.user.name,
+      studentId: student.user.studentId,
+      studentMobile: student.mobile,
+      studentBatch: batchLabel || undefined,
+      paymentStatus: student.paymentStatus,
+      courseName: summary?.courseName ?? payment.studentCourse?.course?.name,
+      fee: summary?.fee,
+      previouslyPaid: summary?.paid,
+    };
+  };
+
+  // Minimal receipt built only from the payment row — used as a fallback when
+  // the student profile can't be fetched (e.g. offline / 404). Missing fields
+  // render as "—" on the receipt.
+  const buildReceiptFromRow = (payment: TPaymentRecord): ReceiptTarget => ({
+    payment,
+    studentName: payment.student?.user?.name || "—",
+    studentId: payment.student?.user?.studentId || "—",
+    courseName: payment.studentCourse?.course?.name,
+  });
+
+  // Build the receipt for a payment that was just recorded (the modal already
+  // loaded the student, so we always have the data).
+  const buildReceiptFromRecorded = (
+    payment: TPaymentRecord,
+  ): ReceiptTarget | null =>
+    buildReceiptFromStudent(payment, studentDetail?.data ?? null) ??
+    buildReceiptFromRow(payment);
 
   // Lazy-load full student detail when "Pay" is clicked.
   const { data: studentDetail, isFetching: studentLoading } =
     useGetStudentByIdQuery(payTarget?.studentId || "", {
       skip: !payTarget,
     });
+
+  // Row-print fetch: when the user clicks a row's printer icon we set
+  // `rowPrintTarget` and trigger a second, independent fetch for that student
+  // so we can build a receipt with mobile / batch / status / breakdown. The
+  // effect below triggers `window.print()` once the data arrives.
+  const { data: rowStudentData, isFetching: rowStudentLoading } =
+    useGetStudentByIdQuery(rowPrintTarget?.studentId || "", {
+      skip: !rowPrintTarget,
+    });
+
+  useEffect(() => {
+    if (!rowPrintTarget) return;
+    if (rowStudentLoading) return;
+    const student = rowStudentData?.data ?? null;
+    const target =
+      buildReceiptFromStudent(rowPrintTarget, student) ??
+      buildReceiptFromRow(rowPrintTarget);
+    printPaymentReceipt({
+      payment: target.payment,
+      studentName: target.studentName,
+      studentId: target.studentId,
+      studentMobile: target.studentMobile,
+      studentBatch: target.studentBatch,
+      paymentStatus: target.paymentStatus,
+      courseName: target.courseName,
+      fee: target.fee,
+      previouslyPaid: target.previouslyPaid,
+      collectedByName: currentUser?.name,
+      collectedByRole: currentUser?.role,
+    });
+    // Clear the target so a re-click of the same row's print button works.
+    setRowPrintTarget(null);
+  }, [rowPrintTarget, rowStudentData, rowStudentLoading, currentUser]);
 
   const handleOpenPay = (record: any) => {
     const preselect: TCoursePaymentSummary = {
@@ -73,6 +195,13 @@ const PaymentsPage = () => {
     setPayTarget(null);
   };
 
+  const onPaymentRecorded = (payment: TPaymentRecord) => {
+    // Auto-open the receipt dialog right after a successful payment so the
+    // staff member can print and hand it to the student immediately.
+    const target = buildReceiptFromRecorded(payment);
+    if (target) setReceiptTarget(target);
+  };
+
   const onPaymentSuccess = async () => {
     closePay();
     // After a new payment is recorded, jump back to page 1 so the new row is
@@ -80,6 +209,15 @@ const PaymentsPage = () => {
     if (page !== 1) setPage(1);
     await Promise.all([refetchAll(), refetchDue()]);
   };
+
+  // Row-level print action: trigger a fetch for the full student profile so
+  // the printed receipt has mobile / batch / status / breakdown. The actual
+  // print is dispatched by the effect above once the data lands.
+  const handleRowPrint = (payment: TPaymentRecord) => {
+    setRowPrintTarget(payment);
+  };
+
+  const closeReceipt = () => setReceiptTarget(null);
 
   return (
     <div className="space-y-6">
@@ -110,18 +248,19 @@ const PaymentsPage = () => {
                       <TableHead>Method</TableHead>
                       <TableHead>Course</TableHead>
                       <TableHead>Date</TableHead>
+                      <TableHead className="text-right">Receipt</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="h-20 text-center text-muted-foreground">
+                        <TableCell colSpan={6} className="h-20 text-center text-muted-foreground">
                           Loading...
                         </TableCell>
                       </TableRow>
                     ) : data?.data?.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="h-20 text-center text-muted-foreground">
+                        <TableCell colSpan={6} className="h-20 text-center text-muted-foreground">
                           No payments yet
                         </TableCell>
                       </TableRow>
@@ -136,6 +275,12 @@ const PaymentsPage = () => {
                           <TableCell>{p.studentCourse?.course?.name?.replace(/_/g, " ") || "—"}</TableCell>
                           <TableCell>
                             {p.paidAt ? dayjs(p.paidAt).format("MMM D, YYYY") : "—"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <PrintReceiptButton
+                              iconOnly
+                              onPrint={() => handleRowPrint(p)}
+                            />
                           </TableCell>
                         </TableRow>
                       ))
@@ -247,6 +392,7 @@ const PaymentsPage = () => {
           student={studentDetail.data}
           preselect={payTarget.preselect}
           onSuccess={onPaymentSuccess}
+          onRecorded={onPaymentRecorded}
         />
       )}
 
@@ -254,6 +400,23 @@ const PaymentsPage = () => {
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center text-white text-sm">
           Loading student…
         </div>
+      )}
+
+      {receiptTarget && (
+        <PaymentReceiptView
+          payment={receiptTarget.payment}
+          studentName={receiptTarget.studentName}
+          studentId={receiptTarget.studentId}
+          studentMobile={receiptTarget.studentMobile}
+          studentBatch={receiptTarget.studentBatch}
+          paymentStatus={receiptTarget.paymentStatus}
+          courseName={receiptTarget.courseName}
+          fee={receiptTarget.fee}
+          previouslyPaid={receiptTarget.previouslyPaid}
+          collectedByName={currentUser?.name}
+          collectedByRole={currentUser?.role}
+          onBack={closeReceipt}
+        />
       )}
     </div>
   );

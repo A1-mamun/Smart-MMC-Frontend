@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import RecordPaymentModal from "@/components/modules/payments/RecordPaymentModal";
+import PaymentReceiptView from "@/components/modules/payments/PaymentReceiptView";
 import { ArrowLeft, Edit, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -29,6 +30,9 @@ import {
   formatCourseLabel,
   formatPaymentMethodLabel,
 } from "@/constants/labels";
+import { useAppSelector } from "@/redux/hooks";
+import { useCurrentUser } from "@/redux/features/auth/authSlice";
+import type { TPaymentRecord } from "@/types/payment";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -39,6 +43,8 @@ const StudentDetailPage = ({ params }: Props) => {
   const { data: paymentData, refetch: refetchPayments } = useGetStudentPaymentsQuery(id);
   const [deleteStudent] = useDeleteStudentMutation();
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [recordedPayment, setRecordedPayment] = useState<TPaymentRecord | null>(null);
+  const currentUser = useAppSelector(useCurrentUser);
 
   if (isLoading) {
     return (
@@ -278,7 +284,29 @@ const StudentDetailPage = ({ params }: Props) => {
           refetch();
           refetchPayments();
         }}
+        onRecorded={(p) => setRecordedPayment(p)}
       />
+
+      {recordedPayment && (
+        <PaymentReceiptView
+          payment={recordedPayment}
+          studentName={student.user.name}
+          studentId={student.user.studentId}
+          studentMobile={student.mobile}
+          studentBatch={(student.batches ?? [])
+            .map((b) => `HSC ${String(b.hscBatch).replace(/^BATCH_/, "")}`)
+            .join(", ") || undefined}
+          paymentStatus={student.paymentStatus}
+          courseName={
+            student.studentCourses?.find(
+              (sc) => sc.id === recordedPayment.studentCourseId,
+            )?.course?.name
+          }
+          collectedByName={currentUser?.name}
+          collectedByRole={currentUser?.role}
+          onBack={() => setRecordedPayment(null)}
+        />
+      )}
 
       <div className="hidden">
         <button onClick={() => refetch()}>refresh</button>

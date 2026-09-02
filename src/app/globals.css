@@ -83,3 +83,10 @@
     font-family: var(--font-poppins), sans-serif;
   }
 }
+
+/*
+ * Print-only styles: the receipt is rendered into an off-screen iframe with
+ * self-contained inline styles (see utils/receiptTemplate.ts), so the iframe
+ * handles printing isolation independently. No page-level @media print rules
+ * are needed in the app's main stylesheet.
+ */

@@ -25,6 +25,7 @@ import {
 import { useRecordPaymentMutation } from "@/redux/features/payment/payment";
 import { paymentMethods } from "@/constants/courseNames";
 import { TStudent, TPayment } from "@/types/student";
+import type { TPaymentRecord } from "@/types/payment";
 
 const schema = z.object({
   studentCourseId: z.string().uuid().optional(),
@@ -51,10 +52,13 @@ type Props = {
   student: TStudent;
   /** Optional summary to preselect a specific enrollment with its due amount. */
   preselect?: TCoursePaymentSummary;
+  /** Fired after the payment is recorded so the parent can refetch lists. */
   onSuccess?: () => void;
+  /** Fired with the created payment so the parent can show a receipt dialog. */
+  onRecorded?: (payment: TPaymentRecord) => void;
 };
 
-const RecordPaymentModal = ({ open, onClose, student, preselect, onSuccess }: Props) => {
+const RecordPaymentModal = ({ open, onClose, student, preselect, onSuccess, onRecorded }: Props) => {
   const [recordPayment, { isLoading }] = useRecordPaymentMutation();
   const [submitting, setSubmitting] = useState(false);
 
@@ -116,16 +120,26 @@ const RecordPaymentModal = ({ open, onClose, student, preselect, onSuccess }: Pr
       if (data.transactionId) payload.transactionId = data.transactionId;
       if (data.senderNumber) payload.senderNumber = data.senderNumber;
       if (data.note) payload.note = data.note;
-      await recordPayment(payload).unwrap();
+      const res = await recordPayment(payload).unwrap();
       toast.success("Payment recorded");
-      reset();
+      // Notify the parent so it can refetch lists AND auto-open the receipt
+      // dialog (which handles printing). Then close this modal so the staff
+      // member sees the receipt dialog immediately.
+      const created = (res?.data as TPaymentRecord) ?? null;
+      if (created) onRecorded?.(created);
       onSuccess?.();
+      reset();
       onClose();
     } catch (err: any) {
       toast.error(err?.data?.message || "Failed to record payment");
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleClose = () => {
+    reset();
+    onClose();
   };
 
   const handleSelectCourse = (courseId: string) => {
@@ -137,11 +151,12 @@ const RecordPaymentModal = ({ open, onClose, student, preselect, onSuccess }: Pr
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Record Payment — {student.user.name}</DialogTitle>
+          <DialogTitle>{`Record Payment — ${student.user.name}`}</DialogTitle>
         </DialogHeader>
+
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {summaries.length > 0 && (
             <div className="space-y-2">
@@ -230,7 +245,7 @@ const RecordPaymentModal = ({ open, onClose, student, preselect, onSuccess }: Pr
           </div>
 
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={handleClose}>
               Cancel
             </Button>
             <Button type="submit" disabled={submitting || isLoading}>

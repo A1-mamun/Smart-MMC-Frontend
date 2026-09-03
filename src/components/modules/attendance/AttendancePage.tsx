@@ -109,6 +109,8 @@ const AttendancePage = () => {
                 <TableRow>
                   <TableHead>Student</TableHead>
                   <TableHead>Student ID</TableHead>
+                  <TableHead>Day</TableHead>
+                  <TableHead>Date</TableHead>
                   <TableHead>Check-in</TableHead>
                   <TableHead>Method</TableHead>
                 </TableRow>
@@ -117,7 +119,7 @@ const AttendancePage = () => {
                 {isLoading ? (
                   <TableRow>
                     <TableCell
-                      colSpan={4}
+                      colSpan={6}
                       className="h-20 text-center text-muted-foreground"
                     >
                       Loading...
@@ -126,7 +128,7 @@ const AttendancePage = () => {
                 ) : data?.data?.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={4}
+                      colSpan={6}
                       className="h-20 text-center text-muted-foreground"
                     >
                       No one has checked in yet today.
@@ -140,6 +142,14 @@ const AttendancePage = () => {
                       </TableCell>
                       <TableCell className="font-mono text-xs">
                         {a.student.user.studentId}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">
+                          {dayjs(a.checkInAt).format("ddd")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {dayjs(a.checkInAt).format("MMM D")}
                       </TableCell>
                       <TableCell>
                         {dayjs(a.checkInAt).format("h:mm A")}

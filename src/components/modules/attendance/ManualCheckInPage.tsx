@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import dayjs from "dayjs";
 import { toast } from "sonner";
 import { Search, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,7 +26,13 @@ const ManualCheckInPage = () => {
   const [results, setResults] = useState<
     Record<
       string,
-      { message: string; isFirstCheckIn: boolean; dueAmount: number }
+      {
+        message: string;
+        isFirstCheckIn: boolean;
+        dueAmount: number;
+        checkInAt: string;
+        method: string;
+      }
     >
   >({});
 
@@ -41,6 +48,8 @@ const ManualCheckInPage = () => {
             message: d.message,
             isFirstCheckIn: d.isFirstCheckIn,
             dueAmount: d.dueAmount,
+            checkInAt: d.checkInAt,
+            method: d.method,
           },
         }));
         toast.success(d.message);
@@ -96,7 +105,7 @@ const ManualCheckInPage = () => {
                     {student.user.studentId} • {student.mobile}
                   </p>
                   {result && (
-                    <div className="text-xs mt-1">
+                    <div className="text-xs mt-1 space-y-1">
                       <Badge
                         variant={
                           result.isFirstCheckIn ? "success" : "secondary"
@@ -104,6 +113,10 @@ const ManualCheckInPage = () => {
                       >
                         {result.message}
                       </Badge>
+                      <p className="text-muted-foreground font-mono">
+                        {dayjs(result.checkInAt).format("ddd, MMM D, YYYY · h:mm A")}{" "}
+                        <span className="opacity-70">({result.method})</span>
+                      </p>
                     </div>
                   )}
                 </div>

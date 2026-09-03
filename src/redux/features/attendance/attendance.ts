@@ -22,6 +22,7 @@ const attendanceApi = baseApi.injectEndpoints({
         method: "POST",
         body: data,
       }),
+      invalidatesTags: ["Attendance", "Dashboard"],
     }),
     manualCheckIn: build.mutation<TApiResponse<TCheckInResult>, { studentId: string; date?: string }>({
       query: (data) => ({
@@ -29,6 +30,7 @@ const attendanceApi = baseApi.injectEndpoints({
         method: "POST",
         body: data,
       }),
+      invalidatesTags: ["Attendance", "Dashboard"],
     }),
     getTodayAttendance: build.query<TApiResponse<TAttendanceWithStudent[]>, any>({
       query: (params) => {
@@ -40,6 +42,7 @@ const attendanceApi = baseApi.injectEndpoints({
         });
         return { url: `/attendance/today?${query.toString()}`, method: "GET" };
       },
+      providesTags: ["Attendance"],
     }),
     getStudentAttendance: build.query<TApiResponse<any>, { studentId: string; startDate?: string; endDate?: string; page?: number; limit?: number }>({
       query: ({ studentId, ...params }) => {
@@ -54,12 +57,17 @@ const attendanceApi = baseApi.injectEndpoints({
           method: "GET",
         };
       },
+      providesTags: (_r, _e, { studentId }) => [
+        { type: "Attendance", id: `STUDENT-${studentId}` },
+        "Attendance",
+      ],
     }),
     getAttendanceStats: build.query<TApiResponse<any>, void>({
       query: () => ({ url: "/attendance/stats", method: "GET" }),
     }),
     deleteAttendance: build.mutation<TApiResponse<null>, string>({
       query: (id) => ({ url: `/attendance/${id}`, method: "DELETE" }),
+      invalidatesTags: ["Attendance", "Dashboard"],
     }),
   }),
 });

@@ -52,6 +52,10 @@ const DAY_OPTIONS = [
 ];
 
 const batchDayFormSchema = z.object({
+  // Optional id — when editing a course we send the existing BatchDay id
+  // back so the backend can update that row in place instead of deleting
+  // and recreating it (which would orphan StudentBatch.batchDayId FKs).
+  id: z.string().optional(),
   name: z.string().trim().min(1, "Batch day name is required").max(50),
   days: z
     .array(z.string().trim().min(1))
@@ -199,6 +203,10 @@ const CoursesPage = () => {
       const cleaned = {
         ...formData,
         batchDays: formData.batchDays.map((d) => ({
+          // Preserve the existing batchDay id during an update so the backend
+          // can match and update that row in place (preserving
+          // StudentBatch.batchDayId FKs). New rows leave id undefined.
+          id: d.id,
           name: d.name.trim(),
           days: d.days,
           times: d.times,
@@ -230,6 +238,9 @@ const CoursesPage = () => {
       batchDays:
         course.batchDays && course.batchDays.length > 0
           ? course.batchDays.map((d) => ({
+              // Carry the existing BatchDay id into the form so the
+              // submission can round-trip it back to the backend.
+              id: d.id,
               name: d.name || "",
               days: d.days,
               times: d.times,

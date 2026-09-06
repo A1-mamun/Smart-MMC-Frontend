@@ -74,13 +74,19 @@ const Students = ({
   });
 
   // Batch day options: each BatchDay row of the course (by its name).
+  // When no course is selected we return [] explicitly so the Batch Day
+  // select goes back to its disabled "Pick a course first" state — even if
+  // courseDetail is still returning previously-cached data from when a
+  // course was selected.
   const availableBatchDays = useMemo(
     () =>
-      (courseDetail?.data?.batchDays ?? []).map((d: TCourseBatchDay) => ({
-        value: d.id,
-        label: d.name || `Batch ${d.position + 1}`,
-      })),
-    [courseDetail],
+      !courseId
+        ? []
+        : (courseDetail?.data?.batchDays ?? []).map((d: TCourseBatchDay) => ({
+            value: d.id,
+            label: d.name || `Batch ${d.position + 1}`,
+          })),
+    [courseDetail, courseId],
   );
 
   // Time options: the chosen batch day's `times[]`.

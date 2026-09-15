@@ -83,7 +83,6 @@ const StudentsTable = ({
               const isPartial =
                 hasEnrollments && totalPaid > 0 && totalDue > 0;
               const isPending = hasEnrollments && totalPaid <= 0;
-              const hasDue = totalDue > 0;
               const status =
                 student.paymentStatus ??
                 (isFullyPaid
@@ -93,6 +92,15 @@ const StudentsTable = ({
                   : isPending
                   ? "PENDING"
                   : "PENDING");
+
+              // Only show the Pay button when the student actually owes money.
+              // We respect the persisted `paymentStatus` (which honors manual
+              // status overrides on record-payment) so a student overridden
+              // to PAID doesn't get a Pay button even if amount math still
+              // shows a due. Falls back to `totalDue > 0` only when the
+              // backend didn't provide a status.
+              const isFullyPaidByStatus = status === "PAID";
+              const hasDue = !isFullyPaidByStatus && totalDue > 0;
 
               return (
                 <TableRow key={student.id}>

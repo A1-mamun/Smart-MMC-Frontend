@@ -179,10 +179,11 @@ const PaymentsPage = () => {
 
   const handleOpenPay = (record: any) => {
     const preselect: TCoursePaymentSummary = {
-      // The /payment/due endpoint returns the Course id under `courseId`, not the
-      // StudentCourse id. The modal exposes a course selector that includes the
-      // enrollment id, so we leave `studentCourseId` blank and prefill the amount.
-      studentCourseId: "",
+      // The /payment/due endpoint now returns the StudentCourse id under
+      // `studentCourseId` so the modal's course selector can preselect the
+      // correct enrollment automatically (important if a student is
+      // enrolled in two batches of the same course).
+      studentCourseId: record.studentCourseId ?? "",
       courseName: record.courseName,
       fee: record.totalFee,
       paid: record.paid,

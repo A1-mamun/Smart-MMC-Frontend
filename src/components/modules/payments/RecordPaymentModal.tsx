@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -34,9 +34,16 @@ const schema = z.object({
   transactionId: z.string().optional(),
   senderNumber: z.string().optional(),
   note: z.string().optional(),
+  // "_auto" sentinel means "follow the existing fee-tracking logic".
+  // Anything else overrides the StudentCourse status on record.
+  overrideStatus: z
+    .enum(["_auto", "PAID", "PARTIAL", "PENDING"])
+    .optional()
+    .default("_auto"),
 });
 
-type FormData = z.infer<typeof schema>;
+type FormData = z.input<typeof schema>;
+type FormOutput = z.output<typeof schema>;
 
 export type TCoursePaymentSummary = {
   studentCourseId: string;
@@ -58,7 +65,14 @@ type Props = {
   onRecorded?: (payment: TPaymentRecord) => void;
 };
 
-const RecordPaymentModal = ({ open, onClose, student, preselect, onSuccess, onRecorded }: Props) => {
+const RecordPaymentModal = ({
+  open,
+  onClose,
+  student,
+  preselect,
+  onSuccess,
+  onRecorded,
+}: Props) => {
   const [recordPayment, { isLoading }] = useRecordPaymentMutation();
   const [submitting, setSubmitting] = useState(false);
 
@@ -84,7 +98,8 @@ const RecordPaymentModal = ({ open, onClose, student, preselect, onSuccess, onRe
   const defaultStudentCourseId =
     preselect?.studentCourseId ??
     (summaries.length === 1 ? summaries[0].studentCourseId : "");
-  const defaultAmount = preselect?.due ?? (summaries.length === 1 ? summaries[0].due : 0);
+  const defaultAmount =
+    preselect?.due ?? (summaries.length === 1 ? summaries[0].due : 0);
 
   const {
     register,
@@ -94,21 +109,37 @@ const RecordPaymentModal = ({ open, onClose, student, preselect, onSuccess, onRe
     watch,
     setValue,
     formState: { errors },
-  } = useForm<FormData, any, FormData>({
+  } = useForm<FormData, any, FormOutput>({
     resolver: zodResolver(schema),
     defaultValues: {
       studentCourseId: defaultStudentCourseId || undefined,
       amount: defaultAmount,
       method: "CASH",
+      overrideStatus: "_auto",
     },
   });
+
+  // Re-seed the form whenever the modal opens for a new student. react-hook-form
+  // only honors `defaultValues` on mount, so if the parent pays for student A,
+  // closes, then opens for student B without unmounting, we explicitly reset()
+  // to keep the auto-selected course / amount / override-status consistent.
+  useEffect(() => {
+    if (!open) return;
+    reset({
+      studentCourseId: defaultStudentCourseId || undefined,
+      amount: defaultAmount,
+      method: "CASH",
+      overrideStatus: "_auto",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, student.id, preselect?.studentCourseId]);
 
   const watchedCourseId = watch("studentCourseId");
   const selectedSummary = summaries.find(
     (s) => s.studentCourseId === watchedCourseId,
   );
 
-  const onSubmit = async (data: FormData) => {
+  const onSubmit = async (data: FormOutput) => {
     setSubmitting(true);
     try {
       const payload: any = {
@@ -120,6 +151,11 @@ const RecordPaymentModal = ({ open, onClose, student, preselect, onSuccess, onRe
       if (data.transactionId) payload.transactionId = data.transactionId;
       if (data.senderNumber) payload.senderNumber = data.senderNumber;
       if (data.note) payload.note = data.note;
+      // Translate the "_auto" sentinel into "field omitted" so the backend
+      // runs its normal fee-tracking logic.
+      if (data.overrideStatus && data.overrideStatus !== "_auto") {
+        payload.overrideStatus = data.overrideStatus;
+      }
       const res = await recordPayment(payload).unwrap();
       toast.success("Payment recorded");
       // Notify the parent so it can refetch lists AND auto-open the receipt
@@ -177,8 +213,12 @@ const RecordPaymentModal = ({ open, onClose, student, preselect, onSuccess, onRe
                     </SelectTrigger>
                     <SelectContent>
                       {summaries.map((s) => (
-                        <SelectItem key={s.studentCourseId} value={s.studentCourseId}>
-                          {s.courseName.replace(/_/g, " ")} — Due ৳{s.due.toLocaleString()}
+                        <SelectItem
+                          key={s.studentCourseId}
+                          value={s.studentCourseId}
+                        >
+                          {s.courseName.replace(/_/g, " ")} — Due ৳
+                          {s.due.toLocaleString()}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -187,7 +227,9 @@ const RecordPaymentModal = ({ open, onClose, student, preselect, onSuccess, onRe
               />
               {selectedSummary && (
                 <p className="text-xs text-muted-foreground">
-                  Fee ৳{selectedSummary.fee.toLocaleString()} · Paid ৳{selectedSummary.paid.toLocaleString()} · Due ৳{selectedSummary.due.toLocaleString()}
+                  Fee ৳{selectedSummary.fee.toLocaleString()} · Paid ৳
+                  {selectedSummary.paid.toLocaleString()} · Due ৳
+                  {selectedSummary.due.toLocaleString()}
                 </p>
               )}
             </div>
@@ -202,7 +244,9 @@ const RecordPaymentModal = ({ open, onClose, student, preselect, onSuccess, onRe
               {...register("amount", { valueAsNumber: true })}
             />
             {errors.amount && (
-              <p className="text-sm text-destructive">{errors.amount.message}</p>
+              <p className="text-sm text-destructive">
+                {errors.amount.message}
+              </p>
             )}
           </div>
 
@@ -228,20 +272,70 @@ const RecordPaymentModal = ({ open, onClose, student, preselect, onSuccess, onRe
             />
           </div>
 
+          <div className="space-y-2">
+            <Label>Payment Status (override)</Label>
+            <Controller
+              control={control}
+              name="overrideStatus"
+              render={({ field }) => (
+                <Select
+                  onValueChange={field.onChange}
+                  value={field.value ?? "_auto"}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_auto">
+                      Auto-track from amount
+                    </SelectItem>
+                    <SelectItem value="PAID">PAID — Fully paid</SelectItem>
+                    <SelectItem value="PARTIAL">PARTIAL — Some paid</SelectItem>
+                    <SelectItem value="PENDING">PENDING — Unpaid</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            {watch("overrideStatus") === "_auto" || !watch("overrideStatus") ? (
+              <p className="text-xs text-muted-foreground">
+                Status will be set automatically based on the amount vs course
+                fee (PAID / PARTIAL / PENDING).
+              </p>
+            ) : (
+              <p className="text-xs text-amber-600">
+                Manual override: the enrollment will be marked as{" "}
+                <strong>{watch("overrideStatus")}</strong> regardless of the
+                amount paid.
+              </p>
+            )}
+          </div>
+
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="transactionId">Transaction ID</Label>
-              <Input id="transactionId" placeholder="(optional)" {...register("transactionId")} />
+              <Input
+                id="transactionId"
+                placeholder="(optional)"
+                {...register("transactionId")}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="senderNumber">Sender Number</Label>
-              <Input id="senderNumber" placeholder="(optional)" {...register("senderNumber")} />
+              <Input
+                id="senderNumber"
+                placeholder="(optional)"
+                {...register("senderNumber")}
+              />
             </div>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="note">Note</Label>
-            <Textarea id="note" placeholder="(optional)" {...register("note")} />
+            <Textarea
+              id="note"
+              placeholder="(optional)"
+              {...register("note")}
+            />
           </div>
 
           <div className="flex justify-end gap-2">

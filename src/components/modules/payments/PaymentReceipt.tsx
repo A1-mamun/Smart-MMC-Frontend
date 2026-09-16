@@ -5,6 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { formatPaymentMethodLabel } from "@/constants/labels";
 import { instituteInfo } from "@/constants/institute";
 import { formatReceiptNumber } from "@/utils/receipt";
+import PaymentSeal from "@/components/modules/payments/PaymentSeal";
 import type { TPaymentRecord } from "@/types/payment";
 
 type Props = {
@@ -31,7 +32,11 @@ const Money = ({ value }: { value: number | string | null | undefined }) => (
   <span>৳{Number(value ?? 0).toLocaleString()}</span>
 );
 
-const StatusBadge = ({ status }: { status: NonNullable<Props["paymentStatus"]> }) => {
+const StatusBadge = ({
+  status,
+}: {
+  status: NonNullable<Props["paymentStatus"]>;
+}) => {
   const styles: Record<NonNullable<Props["paymentStatus"]>, string> = {
     PAID: "bg-emerald-100 text-emerald-800 border-emerald-300",
     PARTIAL: "bg-amber-100 text-amber-800 border-amber-300",
@@ -75,7 +80,18 @@ const PaymentReceipt = ({
   const receiptNo = formatReceiptNumber(payment.id, payment.paidAt);
   const totalFee = Number(fee ?? 0);
   const previous = Number(previouslyPaid ?? 0);
-  const balance = Math.max(0, totalFee - previous - amount);
+  // "Total Paid" on the receipt is the running total — previous payments
+  // (across this enrollment) plus the amount being recorded right now.
+  const totalPaidRunning = previous + amount;
+  /*
+   * Balance Due shown on the receipt. When the enrollment is marked
+   * PAID — including via a manual override where staff accepted a
+   * partial payment as full — we honor that and show 0. The rest of
+   * the receipt still surfaces the actual amounts so the math is
+   * transparent.
+   */
+  const balance =
+    paymentStatus === "PAID" ? 0 : Math.max(0, totalFee - totalPaidRunning);
 
   // A short, human-readable slice of the payment id so the receipt can be
   // cross-referenced with the database without exposing the full UUID.
@@ -86,7 +102,7 @@ const PaymentReceipt = ({
     : "—";
 
   return (
-    <div className="print-receipt bg-white text-black font-sans p-8">
+    <div className="relative print-receipt bg-white text-black font-sans p-8">
       {/* Institute header */}
       <div className="text-center space-y-1">
         <h1 className="text-2xl font-bold uppercase tracking-wide">
@@ -113,7 +129,9 @@ const PaymentReceipt = ({
         </div>
         <div className="text-right space-y-1">
           <div>
-            <p className="text-[10px] uppercase text-neutral-600">Receipt No.</p>
+            <p className="text-[10px] uppercase text-neutral-600">
+              Receipt No.
+            </p>
             <p className="font-mono font-semibold text-sm">{receiptNo}</p>
           </div>
           <div>
@@ -154,7 +172,9 @@ const PaymentReceipt = ({
           </p>
         </div>
         <div>
-          <p className="text-[10px] uppercase text-neutral-600">Payment Status</p>
+          <p className="text-[10px] uppercase text-neutral-600">
+            Payment Status
+          </p>
           <div className="pt-0.5">
             {paymentStatus ? (
               <StatusBadge status={paymentStatus} />
@@ -176,15 +196,23 @@ const PaymentReceipt = ({
           </p>
         </div>
         <div>
-          <p className="text-[10px] uppercase text-neutral-600">Payment Method</p>
-          <p className="font-medium">{formatPaymentMethodLabel(payment.method)}</p>
+          <p className="text-[10px] uppercase text-neutral-600">
+            Payment Method
+          </p>
+          <p className="font-medium">
+            {formatPaymentMethodLabel(payment.method)}
+          </p>
         </div>
         <div>
-          <p className="text-[10px] uppercase text-neutral-600">Transaction ID</p>
+          <p className="text-[10px] uppercase text-neutral-600">
+            Transaction ID
+          </p>
           <p className="font-mono">{payment.transactionId || "—"}</p>
         </div>
         <div>
-          <p className="text-[10px] uppercase text-neutral-600">Sender Number</p>
+          <p className="text-[10px] uppercase text-neutral-600">
+            Sender Number
+          </p>
           <p className="font-mono">{payment.senderNumber || "—"}</p>
         </div>
         {payment.note && (
@@ -216,10 +244,16 @@ const PaymentReceipt = ({
               <Money value={previous} />
             </span>
           </div>
+          <div className="grid grid-cols-2 px-3 py-1.5 border-t border-black/20">
+            <span>Paid Today</span>
+            <span className="text-right">
+              <Money value={amount} />
+            </span>
+          </div>
           <div className="grid grid-cols-2 px-3 py-1.5 border-t border-black/20 font-semibold">
             <span>Total Paid</span>
             <span className="text-right">
-              <Money value={amount} />
+              <Money value={totalPaidRunning} />
             </span>
           </div>
           <div className="grid grid-cols-2 px-3 py-1.5 border-t border-black/40 bg-neutral-100 font-semibold">
@@ -258,6 +292,23 @@ const PaymentReceipt = ({
       <p className="mt-10 text-center text-xs text-neutral-600">
         Thank you for your payment.
       </p>
+
+      {/*
+       * Circular PAID seal — pinned to the bottom-right of the receipt.
+       * Only shown when the enrollment is fully settled (balance 0,
+       * which also covers manual overrides to PAID). The `relative`
+       * wrapper on the receipt root lets us place it cleanly inside the
+       * padding without overflowing the printed page.
+       */}
+      {balance === 0 && (
+        <div className="mt-6 flex justify-end pr-2">
+          <PaymentSeal
+            size={150}
+            rotate={-20}
+            dateLabel={dayjs(payment.paidAt ?? undefined).format("MMM D, YYYY")}
+          />
+        </div>
+      )}
     </div>
   );
 };

@@ -31,6 +31,223 @@ const esc = (s: unknown) =>
     .replace(/"/g, "&quot;");
 
 /**
+ * Inline-SVG circular PAID seal. Mirrors the React `PaymentSeal` component
+ * but kept as a string so it can be dropped straight into the print
+ * iframe without bringing React or any other runtime into the document.
+ *
+ *   - Two concentric rings + a thin dashed inner guide ring.
+ *   - Curved text along the upper half: institute name.
+ *   - Curved text along the lower half: institute address.
+ *   - Tiny ornament stars at 9 and 3 o'clock.
+ *   - Big "PAID" in the middle, with optional date caption underneath.
+ *
+ * The seal is tilted a few degrees (-8°) so it looks naturally stamped
+ * rather than mechanically straight.
+ */
+// const renderSeal = (
+//   dateLabel?: string,
+//   topText?: string,
+//   bottomText?: string,
+// ): string => {
+//   const top = esc((topText || instituteInfo.name).toUpperCase());
+//   const bottom = esc((bottomText || instituteInfo.address || "").toUpperCase());
+//   const date = dateLabel ? esc(dateLabel.toUpperCase()) : "";
+//   return `
+//     <div class="flex justify-center">
+//       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="150" height="150" role="img" aria-label="PAID seal" style="transform:rotate(-20deg);transform-origin:center;display:block;">
+//       <defs>
+//         <path id="seal-top-arc" d="M 35 100 A 20 20 0 0 1 165 100" fill="none" />
+//         <path id="seal-bottom-arc" d="M 29 103 A 65 65 0 0 0 171 103" fill="none" />
+//       </defs>
+//       <circle cx="100" cy="100" r="92" fill="none" stroke="#059669" stroke-width="2.5" opacity="0.9" />
+//       <circle cx="100" cy="100" r="80" fill="none" stroke="#059669" stroke-width="4" />
+//       <circle cx="100" cy="100" r="60" fill="none" stroke="#059669" stroke-width="1" opacity="0.6" stroke-dasharray="2 3" />
+//       <text fill="#059669" font-family="Poppins, Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="2">
+//         <textPath href="#seal-top-arc" startOffset="50%" text-anchor="middle">${top}</textPath>
+//       </text>
+//       <text fill="#059669" font-family="Poppins, Arial, sans-serif" font-size="8" font-weight="600" letter-spacing="1.5">
+//         <textPath href="#seal-bottom-arc" startOffset="50%" text-anchor="middle">${bottom}</textPath>
+//       </text>
+//       <g fill="#059669">
+//         <polygon points="22,100 25,103 28,100 25,97" />
+//         <polygon points="172,100 175,103 178,100 175,97" />
+//       </g>
+//       <text x="100" y="106" text-anchor="middle" font-family="Poppins, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="3" fill="#059669">PAID</text>
+//       ${
+//         date
+//           ? `<text x="100" y="126" text-anchor="middle" font-family="Poppins, Arial, sans-serif" font-size="9" font-weight="600" letter-spacing="1" fill="#059669" opacity="0.85">${date}</text>`
+//           : ""
+//       }
+//     </svg>
+//   `;
+// };
+
+const renderSeal = (
+  dateLabel?: string,
+  topText?: string,
+  bottomText?: string,
+): string => {
+  const top = esc((topText || instituteInfo.name).toUpperCase());
+  const bottom = esc((bottomText || instituteInfo.address || "").toUpperCase());
+  const date = dateLabel ? esc(dateLabel.toUpperCase()) : "";
+
+  // Unique IDs prevent SVG <textPath> collisions.
+  const uid = `seal-${Math.random().toString(36).slice(2, 10)}`;
+  const topArcId = `${uid}-top`;
+  const bottomArcId = `${uid}-bottom`;
+
+  return `
+    <div style="display:flex;justify-content:flex-end;padding-right:8px;">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 200 200"
+        width="150"
+        height="150"
+        role="img"
+        aria-label="PAID seal"
+        style="
+          display:block;
+          overflow:visible;
+          transform:rotate(-20deg);
+          transform-origin:center;
+        "
+      >
+
+        <defs>
+
+          <!-- Top text arc: centered between inner and main rings -->
+            <path
+              id="${topArcId}"
+              d="M 34 100 A 66 66 0 0 1 166 100"
+              fill="none"
+            />
+
+            <!-- Bottom text arc: centered between inner and main rings -->
+            <path
+              id="${bottomArcId}"
+              d="M 166 100 A 66 66 0 0 1 34 100"
+              fill="none"
+            />
+
+        </defs>
+
+        <!-- Outer ring -->
+        <circle
+          cx="100"
+          cy="100"
+          r="92"
+          fill="none"
+          stroke="#059669"
+          stroke-width="2.5"
+          opacity="0.9"
+        />
+
+        <!-- Main ring -->
+        <circle
+          cx="100"
+          cy="100"
+          r="80"
+          fill="none"
+          stroke="#059669"
+          stroke-width="4"
+        />
+
+        <!-- Inner guide ring -->
+        <circle
+          cx="100"
+          cy="100"
+          r="60"
+          fill="none"
+          stroke="#059669"
+          stroke-width="1"
+          opacity="0.6"
+          stroke-dasharray="2 3"
+        />
+
+        <!-- Institute name -->
+        <text
+          fill="#059669"
+          font-family="Arial, sans-serif"
+          font-size="10"
+          font-weight="700"
+          letter-spacing="1.5"
+        >
+          <textPath
+            href="#${topArcId}"
+            startOffset="50%"
+            text-anchor="middle"
+            lengthAdjust="spacingAndGlyphs"
+            textLength="125"
+          >${top}</textPath>
+        </text>
+
+        <!-- Institute address -->
+        <text
+          fill="#059669"
+          font-family="Arial, sans-serif"
+          font-size="7"
+          font-weight="600"
+          letter-spacing="1"
+        >
+          <textPath
+            href="#${bottomArcId}"
+            startOffset="50%"
+            text-anchor="middle"
+            lengthAdjust="spacingAndGlyphs"
+            textLength="120"
+          >${bottom}</textPath>
+        </text>
+
+        <!-- Left ornament -->
+        <polygon
+          points="26,100 30,104 34,100 30,96"
+          fill="#059669"
+        />
+
+        <!-- Right ornament -->
+        <polygon
+          points="166,100 170,104 174,100 170,96"
+          fill="#059669"
+        />
+
+        <!-- PAID -->
+        <text
+          x="100"
+          y="106"
+          text-anchor="middle"
+          font-family="Arial, sans-serif"
+          font-size="28"
+          font-weight="900"
+          letter-spacing="3"
+          fill="#059669"
+        >
+          PAID
+        </text>
+
+        ${
+          date
+            ? `
+              <text
+                x="100"
+                y="126"
+                text-anchor="middle"
+                font-family="Arial, sans-serif"
+                font-size="7"
+                font-weight="600"
+                letter-spacing="1"
+                fill="#059669"
+                opacity="0.85"
+              >${date}</text>
+            `
+            : ""
+        }
+
+      </svg>
+    </div>
+  `;
+};
+
+/**
  * Returns a fully self-contained HTML string for the payment receipt. All
  * styles are inline, no external CSS or Tailwind classes are referenced.
  * This makes the receipt bulletproof when written into a print iframe or
@@ -56,7 +273,17 @@ export const renderReceiptHTML = (props: TemplateProps): string => {
   const receiptNo = formatReceiptNumber(payment.id, payment.paidAt);
   const totalFee = Number(fee ?? 0);
   const previous = Number(previouslyPaid ?? 0);
-  const balance = Math.max(0, totalFee - previous - amount);
+  // Running total: earlier payments plus the amount being recorded now.
+  const totalPaidRunning = previous + amount;
+  /*
+   * Balance Due shown on the receipt. When the enrollment has been
+   * manually overridden to PAID (e.g. staff accepted a partial payment
+   * as full), we honor that and show 0 regardless of the math — the
+   * rest of the receipt still surfaces the actual amounts so the math
+   * is honest.
+   */
+  const balance =
+    paymentStatus === "PAID" ? 0 : Math.max(0, totalFee - totalPaidRunning);
   const shortPaymentId = (payment.id || "").slice(-8).toUpperCase();
   const dateLabel = paidAt.isValid()
     ? paidAt.format("MMM D, YYYY · h:mm A")
@@ -98,9 +325,13 @@ export const renderReceiptHTML = (props: TemplateProps): string => {
               <td style="padding:6px 12px;">Previously Paid</td>
               <td style="padding:6px 12px;text-align:right;">${money(previous)}</td>
             </tr>
+            <tr style="border-top:1px solid #d4d4d4;">
+              <td style="padding:6px 12px;">Paid Today</td>
+              <td style="padding:6px 12px;text-align:right;">${money(amount)}</td>
+            </tr>
             <tr style="border-top:1px solid #d4d4d4;font-weight:600;">
               <td style="padding:6px 12px;">Total Paid</td>
-              <td style="padding:6px 12px;text-align:right;">${money(amount)}</td>
+              <td style="padding:6px 12px;text-align:right;">${money(totalPaidRunning)}</td>
             </tr>
             <tr style="border-top:1px solid #4b5563;background:#f5f5f5;font-weight:600;">
               <td style="padding:6px 12px;">Balance Due</td>
@@ -160,22 +391,28 @@ export const renderReceiptHTML = (props: TemplateProps): string => {
             <p style="font-family:'Geist Mono','Courier New',monospace;margin:2px 0 0 0;">${esc(studentId)}</p>
           </td>
         </tr>
-        ${studentMobile || studentBatch
-          ? `<tr>
-              ${studentMobile
-                ? `<td style="padding:4px 12px 4px 0;vertical-align:top;">
+        ${
+          studentMobile || studentBatch
+            ? `<tr>
+              ${
+                studentMobile
+                  ? `<td style="padding:4px 12px 4px 0;vertical-align:top;">
                     <p style="font-size:10px;color:#525252;text-transform:uppercase;letter-spacing:0.05em;margin:0;">Mobile</p>
                     <p style="font-family:'Geist Mono','Courier New',monospace;margin:2px 0 0 0;">${esc(studentMobile)}</p>
                   </td>`
-                : `<td></td>`}
-              ${studentBatch
-                ? `<td style="padding:4px 0;vertical-align:top;">
+                  : `<td></td>`
+              }
+              ${
+                studentBatch
+                  ? `<td style="padding:4px 0;vertical-align:top;">
                     <p style="font-size:10px;color:#525252;text-transform:uppercase;letter-spacing:0.05em;margin:0;">HSC Batch</p>
                     <p style="font-weight:600;margin:2px 0 0 0;">${esc(studentBatch)}</p>
                   </td>`
-                : `<td></td>`}
+                  : `<td></td>`
+              }
             </tr>`
-          : ""}
+            : ""
+        }
         <tr>
           <td style="padding:4px 12px 4px 0;vertical-align:top;">
             <p style="font-size:10px;color:#525252;text-transform:uppercase;letter-spacing:0.05em;margin:0;">Course</p>
@@ -212,14 +449,16 @@ export const renderReceiptHTML = (props: TemplateProps): string => {
             <p style="font-family:'Geist Mono','Courier New',monospace;margin:2px 0 0 0;">${esc(payment.senderNumber || "—")}</p>
           </td>
         </tr>
-        ${payment.note
-          ? `<tr>
+        ${
+          payment.note
+            ? `<tr>
               <td colspan="2" style="padding:4px 0;vertical-align:top;">
                 <p style="font-size:10px;color:#525252;text-transform:uppercase;letter-spacing:0.05em;margin:0;">Note</p>
                 <p style="margin:2px 0 0 0;">${esc(payment.note)}</p>
               </td>
             </tr>`
-          : ""}
+            : ""
+        }
       </table>
 
       <hr style="border:none;border-top:1px solid #000;margin:12px 0;" />
@@ -240,6 +479,19 @@ export const renderReceiptHTML = (props: TemplateProps): string => {
       </div>
 
       <p style="margin-top:40px;text-align:center;font-size:12px;color:#525252;">Thank you for your payment.</p>
+
+      ${
+        /*
+         * Circular PAID seal — placed in the free space at the bottom-right
+         * of the receipt. Only shown when the enrollment is fully settled
+         * (balance 0, which also covers manual overrides to PAID).
+         */
+        balance === 0
+          ? `<div style="margin-top:24px;display:flex;justify-content:flex-end;padding-right:8px;">
+               ${renderSeal(dateLabel)}
+             </div>`
+          : ""
+      }
     </div>
   `;
 };

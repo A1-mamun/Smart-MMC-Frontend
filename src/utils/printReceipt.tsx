@@ -44,7 +44,7 @@ export const printPaymentReceipt = (props: TemplateProps) => {
 <html>
 <head>
 <meta charset="utf-8" />
-<title>Payment Receipt</title>
+<title>Money Receipt</title>
 <style>
   @page { margin: 12mm; size: auto; }
   html, body { margin: 0; padding: 0; background: white; color: black; }

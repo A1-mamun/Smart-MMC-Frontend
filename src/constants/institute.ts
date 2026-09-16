@@ -5,7 +5,7 @@
  */
 export const instituteInfo = {
   name: process.env.NEXT_PUBLIC_INSTITUTE_NAME || "Mehedi Math Care",
-  address: process.env.NEXT_PUBLIC_INSTITUTE_ADDRESS || "Gononagar, Rajshahi",
+  address: process.env.NEXT_PUBLIC_INSTITUTE_ADDRESS || "Gonokpara, Rajshahi",
   phone: process.env.NEXT_PUBLIC_INSTITUTE_PHONE || "01784475710 | 01766210821",
   email: process.env.NEXT_PUBLIC_INSTITUTE_EMAIL || "",
 };

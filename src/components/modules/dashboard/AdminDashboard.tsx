@@ -117,6 +117,12 @@ const AdminDashboard = () => {
           sublabel={`All-time: ৳${cards.collectedAllTime.toLocaleString()}`}
         />
         <StatCard
+          label="Total Due Amount"
+          value={`৳${(cards.totalDueAmount ?? 0).toLocaleString()}`}
+          icon={AlertCircle}
+          sublabel="Outstanding across all enrollments"
+        />
+        <StatCard
           label="Today Attendance"
           value={cards.todayAttendance}
           icon={CalendarCheck2}

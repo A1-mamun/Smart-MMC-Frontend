@@ -9,6 +9,10 @@ export type TAdminDashboardCards = {
   overdueRecords: number;
   collectedThisMonth: number;
   collectedAllTime: number;
+  // Sum of (fee − paid) across every active enrollment whose persisted
+  // status is NOT PAID. Honors manual overrides — enrollments manually
+  // marked PAID drop out even if fee − paid > 0.
+  totalDueAmount: number;
   todayAttendance: number;
   monthAttendance: number;
 };

@@ -29,6 +29,7 @@ import { printPaymentReceipt } from "@/utils/printReceipt";
 import { useAppSelector } from "@/redux/hooks";
 import { useCurrentUser } from "@/redux/features/auth/authSlice";
 import type { TPaymentRecord } from "@/types/payment";
+import PaymentSeal from "./PaymentSeal";
 
 type PayTarget = {
   studentId: string;
@@ -60,16 +61,17 @@ const PaymentsPage = () => {
     { page, limit: 20 },
     { refetchOnMountOrArgChange: true },
   );
-  const {
-    data: dueData,
-    refetch: refetchDue,
-  } = useGetDuePaymentsQuery(undefined, { refetchOnMountOrArgChange: true });
+  const { data: dueData, refetch: refetchDue } = useGetDuePaymentsQuery(
+    undefined,
+    { refetchOnMountOrArgChange: true },
+  );
 
   const [payTarget, setPayTarget] = useState<PayTarget | null>(null);
   // Drives the receipt dialog. Set both when a payment is just recorded
   // (auto-open) and when the user clicks a row's Print action.
-  const [receiptTarget, setReceiptTarget] =
-    useState<ReceiptTarget | null>(null);
+  const [receiptTarget, setReceiptTarget] = useState<ReceiptTarget | null>(
+    null,
+  );
   // When the user clicks a row's printer icon we set the row's payment here
   // and trigger a `useGetStudentByIdQuery` (below) so we can build a full
   // receipt with mobile / batch / status / breakdown.
@@ -91,14 +93,19 @@ const PaymentsPage = () => {
     const summary = (student.studentCourses ?? [])
       .filter((sc) => !sc.isCompleted)
       .map((sc) => {
-        const paid = (student.payments ?? [])
-          .filter((p) => p.studentCourseId === sc.id)
+        // Subtotal of all payments for this enrollment EXCLUDING the
+        // current one — this becomes the "previouslyPaid" line on the
+        // receipt. Without excluding the current payment we double-
+        // count it (since `student.payments` is the post-record list and
+        // already contains the payment we're building a receipt for).
+        const paidBefore = (student.payments ?? [])
+          .filter((p) => p.studentCourseId === sc.id && p.id !== payment.id)
           .reduce((sum, p) => sum + Number(p.amount), 0);
         return {
           studentCourseId: sc.id,
           courseName: sc.course?.name ?? "Course",
           fee: Number(sc.course?.fee ?? 0),
-          paid,
+          paidBefore,
         };
       })
       .find((s) => s.studentCourseId === scId);
@@ -116,7 +123,7 @@ const PaymentsPage = () => {
       paymentStatus: student.paymentStatus,
       courseName: summary?.courseName ?? payment.studentCourse?.course?.name,
       fee: summary?.fee,
-      previouslyPaid: summary?.paid,
+      previouslyPaid: summary?.paidBefore,
     };
   };
 
@@ -224,6 +231,7 @@ const PaymentsPage = () => {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Payments</h2>
+        {/* <PaymentSeal /> */}
         <p className="text-sm text-muted-foreground">
           All payment records across the institute
         </p>
@@ -255,27 +263,46 @@ const PaymentsPage = () => {
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="h-20 text-center text-muted-foreground">
+                        <TableCell
+                          colSpan={6}
+                          className="h-20 text-center text-muted-foreground"
+                        >
                           Loading...
                         </TableCell>
                       </TableRow>
                     ) : data?.data?.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="h-20 text-center text-muted-foreground">
+                        <TableCell
+                          colSpan={6}
+                          className="h-20 text-center text-muted-foreground"
+                        >
                           No payments yet
                         </TableCell>
                       </TableRow>
                     ) : (
                       data?.data?.map((p) => (
                         <TableRow key={p.id}>
-                          <TableCell className="font-medium">{p.student?.user?.name || "—"}</TableCell>
-                          <TableCell className="font-semibold">৳{Number(p.amount).toLocaleString()}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{formatPaymentMethodLabel(p.method)}</Badge>
+                          <TableCell className="font-medium">
+                            {p.student?.user?.name || "—"}
                           </TableCell>
-                          <TableCell>{p.studentCourse?.course?.name?.replace(/_/g, " ") || "—"}</TableCell>
+                          <TableCell className="font-semibold">
+                            ৳{Number(p.amount).toLocaleString()}
+                          </TableCell>
                           <TableCell>
-                            {p.paidAt ? dayjs(p.paidAt).format("MMM D, YYYY") : "—"}
+                            <Badge variant="outline">
+                              {formatPaymentMethodLabel(p.method)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {p.studentCourse?.course?.name?.replace(
+                              /_/g,
+                              " ",
+                            ) || "—"}
+                          </TableCell>
+                          <TableCell>
+                            {p.paidAt
+                              ? dayjs(p.paidAt).format("MMM D, YYYY")
+                              : "—"}
                           </TableCell>
                           <TableCell className="text-right">
                             <PrintReceiptButton
@@ -300,7 +327,8 @@ const PaymentsPage = () => {
                     Previous
                   </Button>
                   <span className="text-sm">
-                    Page {data.meta.page} of {Math.ceil(data.meta.total / data.meta.limit)}
+                    Page {data.meta.page} of{" "}
+                    {Math.ceil(data.meta.total / data.meta.limit)}
                   </span>
                   <Button
                     variant="outline"
@@ -325,14 +353,22 @@ const PaymentsPage = () => {
                 <div className="grid gap-3 md:grid-cols-2 mb-4">
                   <Card>
                     <CardContent className="pt-4">
-                      <p className="text-sm text-muted-foreground">Students with due</p>
-                      <p className="text-2xl font-bold">{dueData.data.summary.totalDueStudents}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Students with due
+                      </p>
+                      <p className="text-2xl font-bold">
+                        {dueData.data.summary.totalDueStudents}
+                      </p>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="pt-4">
-                      <p className="text-sm text-muted-foreground">Total due amount</p>
-                      <p className="text-2xl font-bold">৳{dueData.data.summary.totalDueAmount.toLocaleString()}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Total due amount
+                      </p>
+                      <p className="text-2xl font-bold">
+                        ৳{dueData.data.summary.totalDueAmount.toLocaleString()}
+                      </p>
                     </CardContent>
                   </Card>
                 </div>
@@ -352,7 +388,10 @@ const PaymentsPage = () => {
                   <TableBody>
                     {dueData?.data?.records?.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="h-20 text-center text-muted-foreground">
+                        <TableCell
+                          colSpan={6}
+                          className="h-20 text-center text-muted-foreground"
+                        >
                           No dues — all payments completed!
                         </TableCell>
                       </TableRow>
@@ -361,17 +400,22 @@ const PaymentsPage = () => {
                         <TableRow key={`${r.studentId}-${r.courseId}-${i}`}>
                           <TableCell>
                             <div className="font-medium">{r.studentName}</div>
-                            <div className="text-xs text-muted-foreground font-mono">{r.studentUserId}</div>
+                            <div className="text-xs text-muted-foreground font-mono">
+                              {r.studentUserId}
+                            </div>
                           </TableCell>
-                          <TableCell>{r.courseName.replace(/_/g, " ")}</TableCell>
+                          <TableCell>
+                            {r.courseName.replace(/_/g, " ")}
+                          </TableCell>
                           <TableCell>৳{r.totalFee.toLocaleString()}</TableCell>
-                          <TableCell className="text-emerald-600">৳{r.paid.toLocaleString()}</TableCell>
-                          <TableCell className="text-destructive font-semibold">৳{r.due.toLocaleString()}</TableCell>
+                          <TableCell className="text-emerald-600">
+                            ৳{r.paid.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-destructive font-semibold">
+                            ৳{r.due.toLocaleString()}
+                          </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              size="sm"
-                              onClick={() => handleOpenPay(r)}
-                            >
+                            <Button size="sm" onClick={() => handleOpenPay(r)}>
                               <Wallet className="h-4 w-4" /> Pay
                             </Button>
                           </TableCell>

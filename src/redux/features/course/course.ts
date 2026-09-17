@@ -74,6 +74,10 @@ const courseApi = baseApi.injectEndpoints({
       invalidatesTags: (_r, _e, { id }) => [
         { type: "Course", id },
         { type: "Course", id: "LIST" },
+        // The Students list filters by `activeCoursesOnly`; any update to a
+        // course (including isActive, isDeleted via soft-delete) can change
+        // that membership, so the Student cache must invalidate too.
+        "Student",
         "Dashboard",
       ],
     }),
@@ -82,6 +86,9 @@ const courseApi = baseApi.injectEndpoints({
       invalidatesTags: (_result, _error, id) => [
         { type: "Course", id },
         { type: "Course", id: "LIST" },
+        // Soft-deleting a course can move students into the "inactive-only"
+        // bucket; refresh the Students list / SMS picker immediately.
+        "Student",
         "Dashboard",
       ],
     }),
@@ -97,6 +104,12 @@ const courseApi = baseApi.injectEndpoints({
       invalidatesTags: (_r, _e, { id }) => [
         { type: "Course", id },
         { type: "Course", id: "LIST" },
+        // Course isActive participates directly in the Students list
+        // (`activeCoursesOnly` filter) and the SMS picker's count, so a
+        // toggled course must invalidate the Student cache to refresh
+        // those screens instantly. Without this the list only refreshes
+        // on a manual reload.
+        "Student",
         "Dashboard",
       ],
     }),

@@ -183,6 +183,19 @@ export type TStudentQuery = {
   batchDayId?: string;
   batchTime?: TBatchTime;
   district?: string;
+  // SMS scenario filters (additive with the rest). See
+  // student.service.ts in the backend for the matching logic.
+  /** ISO yyyy-mm-dd. Resolved server-side to weekday name and matched
+   *  against BatchDay.days[]. */
+  classDate?: string;
+  /** Exact match against BatchDay.times[]. */
+  classTime?: string;
+  /** CSV of course UUIDs — picks every student enrolled in any of them. */
+  scenarioCourses?: string;
+  /** When true, keeps only students with at least one non-PAID enrollment. */
+  hasDue?: boolean;
+  /** When true, keeps only students enrolled in an active course. */
+  activeCoursesOnly?: boolean;
   page?: number;
   limit?: number;
   sortBy?: string;

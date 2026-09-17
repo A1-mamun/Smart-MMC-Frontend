@@ -1,5 +1,5 @@
 "use client";
-import { Eye, Edit, Loader2, Wallet, CheckCircle2 } from "lucide-react";
+import { Eye, Edit, Loader2, Wallet, CheckCircle2, MessageSquare } from "lucide-react";
 import { TStudent } from "@/types/student";
 import {
   Table,
@@ -20,6 +20,13 @@ type StudentsTableProps = {
   onView: (s: TStudent) => void;
   onEdit: (s: TStudent) => void;
   onPay?: (s: TStudent) => void;
+  /**
+   * Optional handler invoked when the user clicks the per-row "Send SMS"
+   * action. When provided a MessageSquare icon button is rendered on every
+   * row. When omitted the action is hidden entirely (the dashboard-wide
+   * SMS page still works regardless).
+   */
+  onSendSms?: (s: TStudent) => void;
 };
 
 const computeTotals = (student: TStudent) => {
@@ -40,6 +47,7 @@ const StudentsTable = ({
   onView,
   onEdit,
   onPay,
+  onSendSms,
 }: StudentsTableProps) => {
   return (
     <div className="rounded-md border bg-card relative">
@@ -192,6 +200,16 @@ const StudentsTable = ({
                           title="Record Payment"
                         >
                           <Wallet className="h-4 w-4" /> Pay
+                        </Button>
+                      )}
+                      {onSendSms && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onSendSms(student)}
+                          title="Send SMS"
+                        >
+                          <MessageSquare className="h-4 w-4" />
                         </Button>
                       )}
                       <Button

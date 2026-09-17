@@ -2,10 +2,16 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Wallet, X, Filter } from "lucide-react";
+import { Plus, Search, X, Filter, MessageSquare, Activity } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -13,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { TStudent, TStudentQuery, TCourseBatchDay } from "@/types/student";
 import { TPaginationMeta } from "@/types/common";
 import {
@@ -22,9 +29,11 @@ import {
 import StudentsTable from "./StudentsTable";
 import RecordPaymentModal from "@/components/modules/payments/RecordPaymentModal";
 import PaymentReceiptView from "@/components/modules/payments/PaymentReceiptView";
+import SmsComposer from "@/components/modules/sms/SmsComposer";
 import { useAppSelector } from "@/redux/hooks";
 import { useCurrentUser } from "@/redux/features/auth/authSlice";
 import type { TPaymentRecord } from "@/types/payment";
+import type { TSmsRecipient } from "@/types/sms";
 
 type StudentsProps = {
   studentsData: TStudent[];
@@ -52,6 +61,10 @@ const Students = ({
   const [payingStudent, setPayingStudent] = useState<TStudent | null>(null);
   // Drives the full-page receipt overlay shown right after a successful payment.
   const [recordedPayment, setRecordedPayment] = useState<TPaymentRecord | null>(null);
+  // When the user clicks the per-row MessageSquare action we open the SMS
+  // composer in a Dialog, pre-filled with that single recipient. They can
+  // still type any number of additional recipients before sending.
+  const [smsRecipient, setSmsRecipient] = useState<TSmsRecipient | null>(null);
   const currentUser = useAppSelector(useCurrentUser);
 
   // Local state for the cascading filter.
@@ -125,11 +138,18 @@ const Students = ({
       batchDay: undefined,
       batchDayId: undefined,
       batchTime: undefined,
+      // Reset to the page default (active-courses-only = true).
+      activeCoursesOnly: true,
       page: 1,
     });
   };
 
-  const hasActiveFilter = !!search || !!courseId || !!batchDayId || !!batchTime;
+  const hasActiveFilter =
+    !!search ||
+    !!courseId ||
+    !!batchDayId ||
+    !!batchTime ||
+    !!query.activeCoursesOnly;
 
   return (
     <div className="space-y-6">
@@ -309,6 +329,33 @@ const Students = ({
               )}
             </div>
           </div>
+
+          {/* 4. Active courses only (defaults to on so students whose only
+              enrollments are in archived / inactive courses are hidden by
+              default; users who want the full roster can toggle this off). */}
+          <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-muted-foreground" />
+              <div className="text-sm">
+                <p className="font-medium leading-none">
+                  Active courses only
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Skip inactive / archived
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={!!query.activeCoursesOnly}
+              onCheckedChange={(v) =>
+                onQueryChange({
+                  ...query,
+                  activeCoursesOnly: v || undefined,
+                  page: 1,
+                })
+              }
+            />
+          </div>
         </div>
       </div>
 
@@ -319,6 +366,13 @@ const Students = ({
         onView={(s) => router.push(`/dashboard/students/${s.id}`)}
         onEdit={(s) => router.push(`/dashboard/students/${s.id}/edit`)}
         onPay={(s) => setPayingStudent(s)}
+        onSendSms={(s) =>
+          setSmsRecipient({
+            studentId: s.id,
+            name: s.user.name,
+            mobile: s.mobile,
+          })
+        }
       />
 
       {meta && meta.total > meta.limit && (
@@ -382,6 +436,30 @@ const Students = ({
           collectedByRole={currentUser?.role}
           onBack={() => setRecordedPayment(null)}
         />
+      )}
+
+      {smsRecipient && (
+        <Dialog
+          open={!!smsRecipient}
+          onOpenChange={(o) => !o && setSmsRecipient(null)}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" />
+                Send SMS to {smsRecipient.name}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="text-xs text-muted-foreground">
+              {smsRecipient.mobile}
+            </div>
+            <SmsComposer
+              recipients={[smsRecipient]}
+              hideRecipientEditor
+              onSent={() => setSmsRecipient(null)}
+            />
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

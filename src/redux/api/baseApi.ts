@@ -63,7 +63,7 @@ export const baseApi = createApi({
   baseQuery: baseQueryWithRefreshToken,
   // Tags drive automatic cache invalidation. When a mutation invalidates one of
   // these tags, every query that provided the same tag will refetch.
-  tagTypes: ["Student", "Payment", "Course", "Attendance", "Activity", "Dashboard"],
+  tagTypes: ["Student", "Payment", "Course", "Attendance", "Activity", "Dashboard", "Sms"],
   // Refetch lists whenever the window regains focus (e.g. user navigates back
   // to the page from elsewhere) so the data is always fresh.
   refetchOnFocus: true,

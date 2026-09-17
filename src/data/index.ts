@@ -10,6 +10,7 @@ import {
   GraduationCap,
   ClipboardList,
   UserCog,
+  MessageSquare,
 } from "lucide-react";
 
 export type NavItem = {
@@ -25,6 +26,7 @@ export const adminNavItems: NavItem[] = [
   { label: "Courses", href: "/dashboard/courses", icon: BookOpen },
   { label: "Payments", href: "/dashboard/payments", icon: CreditCard },
   { label: "Attendance", href: "/dashboard/attendance", icon: CalendarCheck2 },
+  { label: "SMS", href: "/dashboard/sms", icon: MessageSquare },
   { label: "Activity Log", href: "/dashboard/activity", icon: Activity },
   { label: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { label: "Admin Users", href: "/dashboard/users", icon: Shield, superAdminOnly: true },

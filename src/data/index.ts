@@ -11,6 +11,7 @@ import {
   ClipboardList,
   UserCog,
   MessageSquare,
+  Award,
 } from "lucide-react";
 
 export type NavItem = {
@@ -24,6 +25,7 @@ export const adminNavItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Students", href: "/dashboard/students", icon: Users },
   { label: "Courses", href: "/dashboard/courses", icon: BookOpen },
+  { label: "Exams", href: "/dashboard/exams", icon: Award },
   { label: "Payments", href: "/dashboard/payments", icon: CreditCard },
   { label: "Attendance", href: "/dashboard/attendance", icon: CalendarCheck2 },
   { label: "SMS", href: "/dashboard/sms", icon: MessageSquare },
@@ -34,6 +36,7 @@ export const adminNavItems: NavItem[] = [
 
 export const studentNavItems: NavItem[] = [
   { label: "Overview", href: "/dashboard/student", icon: GraduationCap },
+  { label: "Exams & Results", href: "/dashboard/student/exams", icon: Award },
   { label: "My Attendance", href: "/dashboard/student/attendance", icon: ClipboardList },
   { label: "My Payments", href: "/dashboard/student/payments", icon: CreditCard },
   { label: "Profile", href: "/dashboard/student/profile", icon: UserCog },

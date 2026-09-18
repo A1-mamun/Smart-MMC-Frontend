@@ -22,8 +22,23 @@ const paymentApi = baseApi.injectEndpoints({
       },
       providesTags: ["Payment"],
     }),
-    getDuePayments: build.query<TApiResponse<TDuePaymentsData>, void>({
-      query: () => ({ url: "/payment/due", method: "GET" }),
+    // Accepts an optional `searchTerm` so the Due Payments tab can
+    // filter records by student name / BD-code / mobile. The backend
+    // route applies the filter server-side and updates the summary
+    // counts accordingly. Callers that don't need search can still
+    // pass `undefined`.
+    getDuePayments: build.query<
+      TApiResponse<TDuePaymentsData>,
+      { searchTerm?: string } | void
+    >({
+      query: (params) => {
+        const q = new URLSearchParams();
+        if (params && params.searchTerm) {
+          q.append("searchTerm", params.searchTerm);
+        }
+        const qs = q.toString();
+        return { url: `/payment/due${qs ? `?${qs}` : ""}`, method: "GET" };
+      },
       providesTags: ["Payment"],
     }),
     getStudentPayments: build.query<TApiResponse<TStudentPaymentsData>, string>({

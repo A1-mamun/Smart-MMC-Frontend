@@ -140,16 +140,49 @@ const Students = ({
       batchTime: undefined,
       // Reset to the page default (active-courses-only = true).
       activeCoursesOnly: true,
+      // Reset to the page-default sort so "Clear all" puts the user back
+      // to the "Newest first" view they started with.
+      sortBy: "createdAt",
+      sortOrder: "desc",
       page: 1,
     });
   };
 
+  // Flags anything that diverges from the page's default state — search,
+  // cascading course filters, the active-courses toggle, or a non-default
+  // sort. `limit` is intentionally NOT included: it's a view preference,
+  // not a filter, so resizing the table shouldn't make "Clear all" appear.
   const hasActiveFilter =
     !!search ||
     !!courseId ||
     !!batchDayId ||
     !!batchTime ||
-    !!query.activeCoursesOnly;
+    query.activeCoursesOnly !== true ||
+    query.sortBy !== "createdAt" ||
+    query.sortOrder !== "desc";
+
+  // Sort dropdown options. Each key encodes the (sortBy, sortOrder) pair
+  // so the user picks an outcome rather than two abstract controls. The
+  // default key (`newest`) matches `StudentsPage.tsx`'s initial query
+  // state. Only fields that exist as top-level columns on the `Student`
+  // table are offered — relation-ordering (e.g. `user.name`) would need a
+  // nested `orderBy` object the backend's `StudentOrderByWithRelationInput`
+  // accepts but the dropdown UI doesn't have to expose.
+  const SORT_OPTIONS = [
+    { key: "newest", label: "Newest first", sortBy: "createdAt", sortOrder: "desc" },
+    { key: "oldest", label: "Oldest first", sortBy: "createdAt", sortOrder: "asc" },
+    { key: "admittedDesc", label: "Most recently admitted", sortBy: "admittedAt", sortOrder: "desc" },
+    { key: "admittedAsc", label: "Admitted earliest first", sortBy: "admittedAt", sortOrder: "asc" },
+  ] as const;
+  type SortKey = (typeof SORT_OPTIONS)[number]["key"];
+
+  // Derive the current Sort dropdown value from the query. Anything other
+  // than a known pair falls back to the default `newest` shown on screen,
+  // so the Select never lands on a blank value.
+  const currentSortKey: SortKey =
+    (SORT_OPTIONS.find(
+      (o) => o.sortBy === query.sortBy && o.sortOrder === query.sortOrder,
+    )?.key) ?? "newest";
 
   return (
     <div className="space-y-6">
@@ -213,7 +246,7 @@ const Students = ({
             )}
           </div>
 
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-4">
             {/* 1. Course */}
             <div className="space-y-1">
               <Label>1. Course</Label>
@@ -328,6 +361,39 @@ const Students = ({
                 </p>
               )}
             </div>
+
+            {/* 4. Sort — sits alongside the cascading filters (1–3) so
+                all "table-shape" controls share one row, while the
+                `Active courses only` toggle below stays on its own row
+                because it changes WHAT rows are shown, not HOW they're
+                ordered. */}
+            <div className="space-y-1">
+              <Label>4. Sort by</Label>
+              <Select
+                value={currentSortKey}
+                onValueChange={(v) => {
+                  const opt = SORT_OPTIONS.find((o) => o.key === v);
+                  if (!opt) return;
+                  onQueryChange({
+                    ...query,
+                    sortBy: opt.sortBy,
+                    sortOrder: opt.sortOrder,
+                    page: 1,
+                  });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Newest first" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SORT_OPTIONS.map((o) => (
+                    <SelectItem key={o.key} value={o.key}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* 4. Active courses only (defaults to on so students whose only
@@ -375,31 +441,72 @@ const Students = ({
         }
       />
 
-      {meta && meta.total > meta.limit && (
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={meta.page <= 1}
-            onClick={() =>
-              onQueryChange({ ...query, page: (meta.page || 1) - 1 })
-            }
-          >
-            Previous
-          </Button>
-          <span className="text-sm">
-            Page {meta.page} of {Math.ceil(meta.total / meta.limit)}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={meta.page * meta.limit >= meta.total}
-            onClick={() =>
-              onQueryChange({ ...query, page: (meta.page || 1) + 1 })
-            }
-          >
-            Next
-          </Button>
+      {meta && (
+        <div className="flex items-center justify-between gap-2">
+          {/* Page-size selector. Always visible (even on a single page) so
+              the admin can shrink or grow the view without having to first
+              paginate elsewhere. The page count below is the only thing
+              gated on `total > limit` — when there's only one page, the
+              "Page X of Y" indicator is redundant noise. */}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>Rows per page</span>
+            <Select
+              value={String(query.limit ?? 20)}
+              onValueChange={(v) => {
+                onQueryChange({
+                  ...query,
+                  limit: Number(v),
+                  // Page must reset to 1 on size change — otherwise a user
+                  // on page 5 of 20/page who picks 100 could land on a
+                  // half-empty trailing page.
+                  page: 1,
+                });
+              }}
+            >
+              <SelectTrigger className="h-8 w-[80px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {/* Backend's validation caps `limit` at 1000 (raised from
+                    100 to support the bulk-SMS picker pulling entire
+                    cohorts in one request), but 20/50/100 covers the
+                    realistic admin workflow without overwhelming the
+                    table. */}
+                {[10, 20, 50, 100].map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {n}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {meta.total > meta.limit && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={meta.page <= 1}
+                onClick={() =>
+                  onQueryChange({ ...query, page: (meta.page || 1) - 1 })
+                }
+              >
+                Previous
+              </Button>
+              <span className="text-sm">
+                Page {meta.page} of {Math.ceil(meta.total / meta.limit)}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={meta.page * meta.limit >= meta.total}
+                onClick={() =>
+                  onQueryChange({ ...query, page: (meta.page || 1) + 1 })
+                }
+              >
+                Next
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

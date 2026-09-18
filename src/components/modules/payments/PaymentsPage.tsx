@@ -1,11 +1,12 @@
 "use client";
-import { useEffect, useState } from "react";
-import { Wallet } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Filter, Search, Wallet, X } from "lucide-react";
 import {
   useGetAllPaymentsQuery,
   useGetDuePaymentsQuery,
 } from "@/redux/features/payment/payment";
 import { useGetStudentByIdQuery } from "@/redux/features/student/student";
+import { useGetAllCoursesQuery } from "@/redux/features/course/course";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +19,14 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import dayjs from "dayjs";
 import { formatPaymentMethodLabel } from "@/constants/labels";
 import RecordPaymentModal, {
@@ -48,23 +57,120 @@ type ReceiptTarget = {
   previouslyPaid?: number;
 };
 
+// Consolidated query state for the All Payments tab. The backend's
+// `getAllPaymentsSchema` accepts every field on this shape directly, so
+// this object can be spread into the RTK Query hook.
+type TPaymentQuery = {
+  page: number;
+  limit: number;
+  sortBy: string;
+  sortOrder: "asc" | "desc";
+  searchTerm?: string;
+  method?: "CASH" | "BKASH" | "NAGAD" | "BANK" | "OTHER";
+  courseId?: string;
+  startDate?: string; // YYYY-MM-DD
+  endDate?: string; // YYYY-MM-DD
+};
+
+const SEARCH_DEBOUNCE_MS = 350;
+const PAYMENT_METHODS: Array<{
+  value: Exclude<TPaymentQuery["method"], undefined> | "_all";
+  label: string;
+}> = [
+  { value: "_all", label: "All methods" },
+  { value: "CASH", label: "Cash" },
+  { value: "BKASH", label: "bKash" },
+  { value: "NAGAD", label: "Nagad" },
+  { value: "BANK", label: "Bank" },
+  { value: "OTHER", label: "Other" },
+];
+
+const formatCourseName = (name?: string) => {
+  if (!name) return "—";
+  const map: Record<string, string> = {
+    HSC_1ST_YEAR: "HSC 1st Year",
+    HSC_2ND_YEAR: "HSC 2nd Year",
+    HSC_FINAL_PREPARATION: "HSC Final Preparation",
+    ADMISSION: "Admission",
+  };
+  return map[name] ?? name.replace(/_/g, " ");
+};
+
+const Label = ({ children }: { children: React.ReactNode }) => (
+  <label className="text-xs font-medium text-muted-foreground">
+    {children}
+  </label>
+);
+
 const PaymentsPage = () => {
-  const [page, setPage] = useState(1);
-  // refetchOnMountOrArgChange forces a fresh fetch when the user switches tabs
-  // or after a new payment is recorded (we still call refetch() explicitly below
-  // so the page count and "All Payments" list update immediately).
+  // Single source of truth for the All Payments list. Page defaults match
+  // the backend's `calculatePagination` defaults (page 1, limit 20,
+  // createdAt desc) so the query is stable on first render.
+  const [query, setQuery] = useState<TPaymentQuery>({
+    page: 1,
+    limit: 20,
+    sortBy: "createdAt",
+    sortOrder: "desc",
+  });
+
+  // Local mirror of the search box — debounced into `query.searchTerm` by
+  // the effect below so we don't fire a request on every keystroke.
+  const [search, setSearch] = useState<string>(query.searchTerm ?? "");
+
+  // Independent search state for the Due Payments tab. Kept separate
+  // from the All Payments `search` because the two tabs use different
+  // query shapes (`useGetAllPaymentsQuery` takes the consolidated
+  // `TPaymentQuery`; `useGetDuePaymentsQuery` takes just `{ searchTerm }`)
+  // and the user expects each tab to retain its own search value when
+  // they switch between them.
+  const [dueSearch, setDueSearch] = useState<string>("");
+  const [dueSearchTerm, setDueSearchTerm] = useState<string | undefined>(
+    undefined,
+  );
+
+  // refetchOnMountOrArgChange forces a fresh fetch when the user switches
+  // tabs or after a new payment is recorded (we still call refetch()
+  // explicitly below so the page count and "All Payments" list update
+  // immediately).
+  //
+  // We pass a *transformed* copy of `query` to the hook: the local
+  // `startDate` / `endDate` are kept as YYYY-MM-DD strings so the inputs
+  // stay controlled, but the backend's `paidAt` filter is a `DateTime`
+  // comparison — so here we expand them into ISO timestamps with the
+  // right inclusivity. `endDate` gets bumped to the END of the chosen
+  // day so a user picking "Sep 19" sees every payment made at any time
+  // on Sep 19, not just those before midnight.
+  const backendQuery = useMemo(() => {
+    const { startDate, endDate, ...rest } = query;
+    const transformed: Record<string, unknown> = { ...rest };
+    if (startDate)
+      transformed.startDate = new Date(`${startDate}T00:00:00`).toISOString();
+    if (endDate)
+      transformed.endDate = new Date(`${endDate}T23:59:59.999`).toISOString();
+    return transformed;
+  }, [query]);
+
   const {
     data,
     isLoading,
     refetch: refetchAll,
-  } = useGetAllPaymentsQuery(
-    { page, limit: 20 },
-    { refetchOnMountOrArgChange: true },
-  );
+  } = useGetAllPaymentsQuery(backendQuery, { refetchOnMountOrArgChange: true });
   const { data: dueData, refetch: refetchDue } = useGetDuePaymentsQuery(
-    undefined,
+    // Pass the debounced term so the URL only fires once per search
+    // burst. `searchTerm` is undefined when the input is empty, which
+    // makes RTK Query send no query string at all — the backend then
+    // returns the full unfiltered list.
+    dueSearchTerm ? { searchTerm: dueSearchTerm } : undefined,
     { refetchOnMountOrArgChange: true },
   );
+
+  // Course filter dropdown — reuses the same query the rest of the app
+  // uses for course lists.
+  const { data: coursesData } = useGetAllCoursesQuery(
+    { isActive: true, limit: 100 },
+    { refetchOnMountOrArgChange: true },
+  );
+  const courses = coursesData?.data || [];
 
   const [payTarget, setPayTarget] = useState<PayTarget | null>(null);
   // Drives the receipt dialog. Set both when a payment is just recorded
@@ -212,9 +318,12 @@ const PaymentsPage = () => {
 
   const onPaymentSuccess = async () => {
     closePay();
-    // After a new payment is recorded, jump back to page 1 so the new row is
-    // visible, then refetch both lists.
-    if (page !== 1) setPage(1);
+    // After a new payment is recorded, jump back to page 1 so the new row
+    // is visible, then refetch both lists. Page reset only — we keep the
+    // active filters and sort in place so the user lands on the same view.
+    if (query.page !== 1) {
+      setQuery({ ...query, page: 1 });
+    }
     await Promise.all([refetchAll(), refetchDue()]);
   };
 
@@ -226,6 +335,117 @@ const PaymentsPage = () => {
   };
 
   const closeReceipt = () => setReceiptTarget(null);
+
+  // ── Search debounce ────────────────────────────────────────────────────
+  // Mirrors the pattern from Exams / Students: local `search` state is the
+  // source of truth for the input, and we push it into the consolidated
+  // `query.searchTerm` after `SEARCH_DEBOUNCE_MS` of idle. Page resets to
+  // 1 on every search so a result on page 4 doesn't drop the user on an
+  // empty trailing page when the result set shrinks.
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      const next = search.trim() || undefined;
+      if ((query.searchTerm ?? undefined) === next) return;
+      setQuery({ ...query, searchTerm: next, page: 1 });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, query.searchTerm]);
+
+  const clearSearch = () => {
+    setSearch("");
+    if (query.searchTerm !== undefined) {
+      setQuery({ ...query, searchTerm: undefined, page: 1 });
+    }
+  };
+
+  // Due Payments search debounce. Same pattern as the All Payments
+  // debounce above, but bound to its own pair of states so each tab
+  // remembers its own search term when the user switches between them.
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      const next = dueSearch.trim() || undefined;
+      if (dueSearchTerm === next) return;
+      setDueSearchTerm(next);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dueSearch, dueSearchTerm]);
+
+  const clearDueSearch = () => {
+    setDueSearch("");
+    setDueSearchTerm(undefined);
+  };
+
+  // ── Filter card ────────────────────────────────────────────────────────
+  // `clearFilters` resets search/filter/sort back to the page defaults but
+  // intentionally leaves `limit` alone — page size is a view preference,
+  // not a filter, so "Clear all" shouldn't shrink the table back to 20.
+  const clearFilters = () => {
+    setSearch("");
+    setQuery({
+      page: 1,
+      limit: query.limit, // preserved — not a filter
+      sortBy: "createdAt",
+      sortOrder: "desc",
+    });
+  };
+
+  // Flags anything that diverges from the page's default state.
+  // `limit` is intentionally not included.
+  const hasActiveFilter =
+    !!query.searchTerm ||
+    !!query.method ||
+    !!query.courseId ||
+    !!query.startDate ||
+    !!query.endDate ||
+    query.sortBy !== "createdAt" ||
+    query.sortOrder !== "desc";
+
+  // Sort options — 4 outcome-named pairs over the two most useful
+  // `Payment` columns. We restrict to top-level columns because the
+  // backend orders by `student: { ... }` relations via a different
+  // expression shape than `{ [sortBy]: sortOrder }` — keeping it simple
+  // avoids an extra backend codepath for a feature admin rarely needs.
+  const SORT_OPTIONS = [
+    {
+      key: "newest",
+      label: "Newest first",
+      sortBy: "createdAt",
+      sortOrder: "desc",
+    },
+    {
+      key: "oldest",
+      label: "Oldest first",
+      sortBy: "createdAt",
+      sortOrder: "asc",
+    },
+    {
+      key: "amountDesc",
+      label: "Largest amount first",
+      sortBy: "amount",
+      sortOrder: "desc",
+    },
+    {
+      key: "amountAsc",
+      label: "Smallest amount first",
+      sortBy: "amount",
+      sortOrder: "asc",
+    },
+  ] as const;
+  type SortKey = (typeof SORT_OPTIONS)[number]["key"];
+
+  const currentSortKey: SortKey =
+    SORT_OPTIONS.find(
+      (o) => o.sortBy === query.sortBy && o.sortOrder === query.sortOrder,
+    )?.key ?? "newest";
+
+  // Memoised meta extraction for the footer.
+  const meta = (data?.meta as
+    | { page: number; limit: number; total: number }
+    | undefined) ?? { page: 1, limit: 20, total: 0 };
+  const list: TPaymentRecord[] =
+    (data?.data as TPaymentRecord[] | undefined) ?? [];
 
   return (
     <div className="space-y-6">
@@ -247,7 +467,183 @@ const PaymentsPage = () => {
             <CardHeader>
               <CardTitle>Records ({data?.meta?.total || 0})</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              {/* ── Search bar ────────────────────────────────────────── */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by student name, BD-code, or mobile..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const next = search.trim() || undefined;
+                      if ((query.searchTerm ?? undefined) === next) return;
+                      setQuery({ ...query, searchTerm: next, page: 1 });
+                    }
+                  }}
+                  className="pl-9 pr-9"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={clearSearch}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+                    aria-label="Clear search"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* ── Filter card ───────────────────────────────────────── */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Filter className="h-4 w-4" />
+                    Filters
+                    {hasActiveFilter && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={clearFilters}
+                        className="ml-auto h-7"
+                      >
+                        Clear all
+                      </Button>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid gap-3 md:grid-cols-4">
+                    {/* Method */}
+                    <div className="space-y-1">
+                      <Label>Method</Label>
+                      <Select
+                        value={query.method ?? "_all"}
+                        onValueChange={(v) =>
+                          setQuery({
+                            ...query,
+                            method:
+                              v === "_all"
+                                ? undefined
+                                : (v as Exclude<
+                                    TPaymentQuery["method"],
+                                    undefined
+                                  >),
+                            page: 1,
+                          })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="All methods" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PAYMENT_METHODS.map((m) => (
+                            <SelectItem key={m.value} value={m.value}>
+                              {m.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Course */}
+                    <div className="space-y-1">
+                      <Label>Course</Label>
+                      <Select
+                        value={query.courseId ?? "_all"}
+                        onValueChange={(v) =>
+                          setQuery({
+                            ...query,
+                            courseId: v === "_all" ? undefined : v,
+                            page: 1,
+                          })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="All courses" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="_all">All courses</SelectItem>
+                          {courses.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {formatCourseName(c.name)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Date range — start */}
+                    <div className="space-y-1">
+                      <Label>Paid from</Label>
+                      <Input
+                        type="date"
+                        value={query.startDate ?? ""}
+                        onChange={(e) =>
+                          setQuery({
+                            ...query,
+                            startDate: e.target.value || undefined,
+                            page: 1,
+                          })
+                        }
+                      />
+                    </div>
+
+                    {/* Date range — end */}
+                    <div className="space-y-1">
+                      <Label>Paid until</Label>
+                      <Input
+                        type="date"
+                        value={query.endDate ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value || undefined;
+                          setQuery({
+                            ...query,
+                            endDate: v,
+                            page: 1,
+                          });
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Sort on its own row so the dropdown gets full width
+                      and doesn't crowd the filter cells on narrow screens. */}
+                  <div className="grid gap-3 md:grid-cols-4">
+                    <div className="space-y-1 md:col-span-1">
+                      <Label>Sort by</Label>
+                      <Select
+                        value={currentSortKey}
+                        onValueChange={(v) => {
+                          const opt = SORT_OPTIONS.find((o) => o.key === v);
+                          if (!opt) return;
+                          setQuery({
+                            ...query,
+                            sortBy: opt.sortBy,
+                            sortOrder: opt.sortOrder,
+                            page: 1,
+                          });
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Newest first" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SORT_OPTIONS.map((o) => (
+                            <SelectItem key={o.key} value={o.key}>
+                              {o.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* ── Table ────────────────────────────────────────────── */}
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
@@ -270,17 +666,17 @@ const PaymentsPage = () => {
                           Loading...
                         </TableCell>
                       </TableRow>
-                    ) : data?.data?.length === 0 ? (
+                    ) : list.length === 0 ? (
                       <TableRow>
                         <TableCell
                           colSpan={6}
                           className="h-20 text-center text-muted-foreground"
                         >
-                          No payments yet
+                          No payments match the current filters.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      data?.data?.map((p) => (
+                      list.map((p) => (
                         <TableRow key={p.id}>
                           <TableCell className="font-medium">
                             {p.student?.user?.name || "—"}
@@ -294,10 +690,7 @@ const PaymentsPage = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {p.studentCourse?.course?.name?.replace(
-                              /_/g,
-                              " ",
-                            ) || "—"}
+                            {formatCourseName(p.studentCourse?.course?.name)}
                           </TableCell>
                           <TableCell>
                             {p.paidAt
@@ -316,28 +709,66 @@ const PaymentsPage = () => {
                   </TableBody>
                 </Table>
               </div>
-              {data?.meta && data.meta.total > data.meta.limit && (
-                <div className="flex justify-end gap-2 mt-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={page <= 1}
-                    onClick={() => setPage(page - 1)}
-                  >
-                    Previous
-                  </Button>
-                  <span className="text-sm">
-                    Page {data.meta.page} of{" "}
-                    {Math.ceil(data.meta.total / data.meta.limit)}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={page * data.meta.limit >= data.meta.total}
-                    onClick={() => setPage(page + 1)}
-                  >
-                    Next
-                  </Button>
+
+              {/* ── Pagination footer ────────────────────────────────── */}
+              {/* Mirrors the Exams / Students pattern: always render the
+                  strip when meta exists so the page-size selector is
+                  visible even on a single page; Previous/Next stay gated
+                  on `total > limit` so they don't render as redundant
+                  "Page 1 of 1" noise. */}
+              {data?.meta && (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span>Rows per page</span>
+                    <Select
+                      value={String(query.limit)}
+                      onValueChange={(v) =>
+                        setQuery({
+                          ...query,
+                          limit: Number(v),
+                          page: 1,
+                        })
+                      }
+                    >
+                      <SelectTrigger className="h-8 w-20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[10, 20, 50, 100].map((n) => (
+                          <SelectItem key={n} value={String(n)}>
+                            {n}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {data.meta.total > data.meta.limit && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={meta.page <= 1}
+                        onClick={() =>
+                          setQuery({ ...query, page: meta.page - 1 })
+                        }
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-sm">
+                        Page {meta.page} of {Math.ceil(meta.total / meta.limit)}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={meta.page * meta.limit >= meta.total}
+                        onClick={() =>
+                          setQuery({ ...query, page: meta.page + 1 })
+                        }
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -348,7 +779,40 @@ const PaymentsPage = () => {
             <CardHeader>
               <CardTitle>Due Payments</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              {/* ── Search bar ──────────────────────────────────────────
+                  Mirrors the All Payments search above: same input shape,
+                  same 350ms debounce (driven by the dueSearch →
+                  dueSearchTerm effect below). The clear-X button only
+                  appears once the user types so the input doesn't have
+                  a dangling icon when empty. */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by student name, BD-code, or mobile..."
+                  value={dueSearch}
+                  onChange={(e) => setDueSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const next = dueSearch.trim() || undefined;
+                      if (dueSearchTerm !== next) {
+                        setDueSearchTerm(next);
+                      }
+                    }
+                  }}
+                  className="pl-9 pr-9"
+                />
+                {dueSearch && (
+                  <button
+                    type="button"
+                    onClick={clearDueSearch}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+                    aria-label="Clear search"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
               {dueData?.data?.summary && (
                 <div className="grid gap-3 md:grid-cols-2 mb-4">
                   <Card>
@@ -392,7 +856,9 @@ const PaymentsPage = () => {
                           colSpan={6}
                           className="h-20 text-center text-muted-foreground"
                         >
-                          No dues — all payments completed!
+                          {dueSearchTerm
+                            ? `No due payments match "${dueSearchTerm}".`
+                            : "No dues — all payments completed!"}
                         </TableCell>
                       </TableRow>
                     ) : (

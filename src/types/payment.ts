@@ -57,6 +57,9 @@ export type TDueRecord = {
   studentCourseId?: string;
   studentName: string;
   studentUserId: string;
+  // Surfaced so the Due tab's search input can match by mobile, mirroring
+  // the All Payments tab's search dimensions.
+  studentMobile?: string;
   courseId: string;
   courseName: string;
   totalFee: number;

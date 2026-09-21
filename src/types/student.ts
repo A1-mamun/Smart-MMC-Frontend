@@ -45,6 +45,10 @@ export type TStudentCourseEnrollment = {
   enrolledAt: string;
   isCompleted: boolean;
   completedAt?: string | null;
+  // Per-enrollment Student ID (e.g. "271200" — HSC batch 27, year 1,
+  // roll 200). Distinct from the user's permanent login identifier;
+  // a student enrolled in two courses gets two IDs here.
+  studentCourseId?: string | null;
   course: TCourse;
 };
 
@@ -67,7 +71,9 @@ export type TStudent = {
   id: string;
   college?: string | null;
   mobile: string;
-  bloodGroup: TBloodGroup;
+  // Nullable since the admit form lets the admin skip these when info
+  // isn't available at admit time.
+  bloodGroup?: TBloodGroup | null;
   paymentStatus?: TPaymentStatus;
   paymentSummary?: {
     totalFee: number;
@@ -78,17 +84,17 @@ export type TStudent = {
   fatherName: string;
   fatherOccupation: string;
   fatherMobile: string;
-  motherName: string;
-  motherOccupation: string;
-  motherMobile: string;
-  addressVillage: string;
-  addressPostOffice: string;
+  motherName?: string | null;
+  motherOccupation?: string | null;
+  motherMobile?: string | null;
+  addressVillage?: string | null;
+  addressPostOffice?: string | null;
   addressUpozila: string;
   addressDistrict: string;
   sscInstitute: string;
-  sscBoard: TEducationBoard;
-  sscPassingYear: number;
-  sscGpa: string | number;
+  sscBoard?: TEducationBoard | null;
+  sscPassingYear?: number | null;
+  sscGpa?: string | number | null;
   admittedAt: string;
   admittedBy: string;
   user: TStudentUser;
@@ -147,7 +153,14 @@ export type TAttendanceWithStudent = TAttendance & {
 
 export type TStudentCredentials = {
   studentId: string;
-  initialPassword: string;
+  initialPassword: string | null;
+  // When an admin re-admits an existing student into another course,
+  // the backend reuses the User/Student profile (no new login creds)
+  // and stamps a fresh `studentCourseId` on the new enrollment.
+  // The form shows the new per-enrollment ID and a "no password needed"
+  // message in that case.
+  studentCourseId?: string;
+  alreadyEnrolled?: boolean;
 };
 
 export type TAdmitStudentPayload = {
@@ -155,24 +168,42 @@ export type TAdmitStudentPayload = {
   nickname?: string;
   college?: string;
   mobile: string;
-  bloodGroup: TBloodGroup;
+  // Optional in the admit payload — admin can skip when info isn't on file.
+  bloodGroup?: TBloodGroup | null;
   fatherName: string;
   fatherOccupation: string;
   fatherMobile: string;
-  motherName: string;
-  motherOccupation: string;
-  motherMobile: string;
-  addressVillage: string;
-  addressPostOffice: string;
+  motherName?: string | null;
+  motherOccupation?: string | null;
+  motherMobile?: string | null;
+  addressVillage?: string | null;
+  addressPostOffice?: string | null;
   addressUpozila: string;
   addressDistrict: string;
   sscInstitute: string;
-  sscBoard: TEducationBoard;
-  sscPassingYear: number;
-  sscGpa: number;
+  sscBoard?: TEducationBoard | null;
+  sscPassingYear?: number | null;
+  sscGpa?: number | null;
   courseId: string;
   batchDayId: string;
   batchTime: TBatchTime;
+};
+
+/**
+ * Narrow payload for enrolling an EXISTING student (matched by mobile)
+ * into a NEW course via `POST /student/enroll-existing`. Strict subset
+ * of `TAdmitStudentPayload` — the personal / guardian / address / SSC
+ * blocks are intentionally omitted because the existing profile is
+ * reused verbatim.
+ */
+export type TEnrollExistingStudentPayload = {
+  mobile: string;
+  courseId: string;
+  batchDayId: string;
+  batchTime: TBatchTime;
+  // Optional — admins occasionally want to correct a nickname without
+  // going through the full student-edit flow.
+  nickname?: string;
 };
 
 export type TStudentQuery = {

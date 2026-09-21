@@ -1,15 +1,16 @@
 import { baseApi } from "@/redux/api/baseApi";
 import { TApiResponse } from "@/types/common";
 
-type TLoginPayload = { studentId: string; password: string };
+type TLoginPayload = { mobile: string; password: string };
 type TChangePasswordPayload = { currentPassword: string; newPassword: string };
-type TForgotPasswordPayload = { studentId: string };
+type TForgotPasswordPayload = { mobile: string };
 type TResetPasswordPayload = { token: string; newPassword: string };
 
 type TLoginData = {
   user: {
     id: string;
     studentId: string;
+    mobile?: string | null;
     name: string;
     role: "SUPER_ADMIN" | "ADMIN" | "STUDENT";
     mustChangePassword: boolean;

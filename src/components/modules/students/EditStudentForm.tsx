@@ -34,41 +34,54 @@ const schema = z.object({
   nickname: z.string().optional(),
   college: z.string().optional(),
   mobile: z.string().regex(phoneRegex, "Invalid BD mobile number"),
-  bloodGroup: z.enum([
-    "A_POSITIVE",
-    "A_NEGATIVE",
-    "B_POSITIVE",
-    "B_NEGATIVE",
-    "AB_POSITIVE",
-    "AB_NEGATIVE",
-    "O_POSITIVE",
-    "O_NEGATIVE",
-  ]),
+  // Same relaxations as the admit form — keep the two in sync so admins
+  // don't see a rule change between creating and editing a student.
+  bloodGroup: z
+    .enum([
+      "A_POSITIVE",
+      "A_NEGATIVE",
+      "B_POSITIVE",
+      "B_NEGATIVE",
+      "AB_POSITIVE",
+      "AB_NEGATIVE",
+      "O_POSITIVE",
+      "O_NEGATIVE",
+    ])
+    .optional()
+    .nullable(),
   fatherName: z.string().min(2, "Father name is required"),
   fatherOccupation: z.string().min(2, "Required"),
   fatherMobile: z.string().regex(phoneRegex, "Invalid BD mobile number"),
-  motherName: z.string().min(2, "Mother name is required"),
-  motherOccupation: z.string().min(2, "Required"),
-  motherMobile: z.string().regex(phoneRegex, "Invalid BD mobile number"),
-  addressVillage: z.string().min(1, "Required"),
-  addressPostOffice: z.string().min(1, "Required"),
+  motherName: z.string().min(2).optional().nullable().or(z.literal("")),
+  motherOccupation: z.string().optional().nullable().or(z.literal("")),
+  motherMobile: z
+    .string()
+    .regex(phoneRegex, "Invalid BD mobile number")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
+  addressVillage: z.string().optional().nullable().or(z.literal("")),
+  addressPostOffice: z.string().optional().nullable().or(z.literal("")),
   addressUpozila: z.string().min(1, "Required"),
   addressDistrict: z.string().min(1, "Required"),
   sscInstitute: z.string().min(1, "Required"),
-  sscBoard: z.enum([
-    "DHAKA",
-    "CHITTAGONG",
-    "RAJSHAHI",
-    "COMILLA",
-    "SYLHET",
-    "BARISAL",
-    "JESSORE",
-    "MYMENSINGH",
-    "MADRASAH",
-    "TECHNICAL",
-  ]),
-  sscPassingYear: z.number().min(2010).max(new Date().getFullYear()),
-  sscGpa: z.number().min(0).max(5),
+  sscBoard: z
+    .enum([
+      "DHAKA",
+      "CHITTAGONG",
+      "RAJSHAHI",
+      "COMILLA",
+      "SYLHET",
+      "BARISAL",
+      "JESSORE",
+      "MYMENSINGH",
+      "MADRASAH",
+      "TECHNICAL",
+    ])
+    .optional()
+    .nullable(),
+  sscPassingYear: z.number().min(2010).max(new Date().getFullYear()).optional().nullable(),
+  sscGpa: z.number().min(0).max(5).optional().nullable(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -107,14 +120,20 @@ const EditStudentForm = ({ studentId }: Props) => {
       addressUpozila: "",
       addressDistrict: "",
       sscInstitute: "",
-      sscPassingYear: new Date().getFullYear() - 1,
-      sscGpa: 4.0,
       bloodGroup: undefined,
       sscBoard: undefined,
+      // Optional numeric fields start undefined so the form accepts an
+      // empty input without flagging it as invalid.
+      sscPassingYear: undefined,
+      sscGpa: undefined,
     },
   });
 
-  // Hydrate the form when the student is loaded.
+  // Hydrate the form when the student is loaded. `sscGpa` arrives from
+  // the API as a Prisma Decimal (string). On edit it may be null/undefined
+  // for newly-admitted students who haven't filled it in yet — pass it
+  // through as undefined so the schema's `.optional().nullable()` accepts
+  // it. Same for sscPassingYear, mother block, etc.
   useEffect(() => {
     if (!data?.data) return;
     const s = data.data;
@@ -123,31 +142,60 @@ const EditStudentForm = ({ studentId }: Props) => {
       nickname: s.user.nickname || "",
       college: s.college || "",
       mobile: s.mobile,
-      bloodGroup: s.bloodGroup ?? "",
+      bloodGroup: s.bloodGroup ?? undefined,
       fatherName: s.fatherName,
       fatherOccupation: s.fatherOccupation,
       fatherMobile: s.fatherMobile,
-      motherName: s.motherName,
-      motherOccupation: s.motherOccupation,
-      motherMobile: s.motherMobile,
-      addressVillage: s.addressVillage,
-      addressPostOffice: s.addressPostOffice,
+      motherName: s.motherName ?? "",
+      motherOccupation: s.motherOccupation ?? "",
+      motherMobile: s.motherMobile ?? "",
+      addressVillage: s.addressVillage ?? "",
+      addressPostOffice: s.addressPostOffice ?? "",
       addressUpozila: s.addressUpozila,
       addressDistrict: s.addressDistrict,
       sscInstitute: s.sscInstitute,
-      sscBoard: s.sscBoard ?? "",
-      sscPassingYear: s.sscPassingYear,
-      sscGpa: Number(s.sscGpa),
+      sscBoard: s.sscBoard ?? undefined,
+      sscPassingYear: s.sscPassingYear ?? undefined,
+      sscGpa: s.sscGpa == null ? undefined : Number(s.sscGpa),
     });
   }, [data, reset]);
 
   const onSubmit = async (formData: FormData) => {
     setSubmitting(true);
     try {
-      await updateStudent({
-        id: studentId,
-        data: formData,
-      }).unwrap();
+      // Normalise "" / undefined / NaN to `null` for the now-optional
+      // fields. The backend's `nullIfEmpty` would also do this, but
+      // sending real nulls up front avoids any "should I send undefined?"
+      // ambiguity in the wire payload and keeps analytics exports clean.
+      const blankToNull = (v: unknown): string | null =>
+        v === undefined || v === null || v === "" ? null : (v as string);
+      const numBlankToNull = (v: unknown): number | null => {
+        if (v === undefined || v === null) return null;
+        if (typeof v === "number" && Number.isFinite(v)) return v;
+        return null;
+      };
+      const data = {
+        name: formData.name,
+        nickname: formData.nickname || undefined,
+        college: formData.college || undefined,
+        mobile: formData.mobile,
+        bloodGroup: formData.bloodGroup || null,
+        fatherName: formData.fatherName,
+        fatherOccupation: formData.fatherOccupation,
+        fatherMobile: formData.fatherMobile,
+        motherName: blankToNull(formData.motherName),
+        motherOccupation: blankToNull(formData.motherOccupation),
+        motherMobile: blankToNull(formData.motherMobile),
+        addressVillage: blankToNull(formData.addressVillage),
+        addressPostOffice: blankToNull(formData.addressPostOffice),
+        addressUpozila: formData.addressUpozila,
+        addressDistrict: formData.addressDistrict,
+        sscInstitute: formData.sscInstitute,
+        sscBoard: formData.sscBoard || null,
+        sscPassingYear: numBlankToNull(formData.sscPassingYear),
+        sscGpa: numBlankToNull(formData.sscGpa),
+      };
+      await updateStudent({ id: studentId, data }).unwrap();
       toast.success("Student updated");
       await refetch();
       router.push(`/dashboard/students/${studentId}`);
@@ -239,7 +287,7 @@ const EditStudentForm = ({ studentId }: Props) => {
           </div> */}
 
           <div className="space-y-2">
-            <Label htmlFor="bloodGroup">Blood Group *</Label>
+            <Label htmlFor="bloodGroup">Blood Group</Label>
 
             <Controller
               control={control}
@@ -314,25 +362,15 @@ const EditStudentForm = ({ studentId }: Props) => {
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="motherName">Mother Name *</Label>
+            <Label htmlFor="motherName">Mother Name</Label>
             <Input id="motherName" {...register("motherName")} />
-            {errors.motherName && (
-              <p className="text-sm text-destructive">
-                {errors.motherName.message}
-              </p>
-            )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="motherOccupation">Mother Occupation *</Label>
+            <Label htmlFor="motherOccupation">Mother Occupation</Label>
             <Input id="motherOccupation" {...register("motherOccupation")} />
-            {errors.motherOccupation && (
-              <p className="text-sm text-destructive">
-                {errors.motherOccupation.message}
-              </p>
-            )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="motherMobile">Mother Mobile *</Label>
+            <Label htmlFor="motherMobile">Mother Mobile</Label>
             <Input
               id="motherMobile"
               {...register("motherMobile")}
@@ -340,7 +378,7 @@ const EditStudentForm = ({ studentId }: Props) => {
             />
             {errors.motherMobile && (
               <p className="text-sm text-destructive">
-                {errors.motherMobile.message}
+                {errors.motherMobile.message as string}
               </p>
             )}
           </div>
@@ -353,22 +391,12 @@ const EditStudentForm = ({ studentId }: Props) => {
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="addressVillage">Village *</Label>
+            <Label htmlFor="addressVillage">Village</Label>
             <Input id="addressVillage" {...register("addressVillage")} />
-            {errors.addressVillage && (
-              <p className="text-sm text-destructive">
-                {errors.addressVillage.message}
-              </p>
-            )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="addressPostOffice">Post Office *</Label>
+            <Label htmlFor="addressPostOffice">Post Office</Label>
             <Input id="addressPostOffice" {...register("addressPostOffice")} />
-            {errors.addressPostOffice && (
-              <p className="text-sm text-destructive">
-                {errors.addressPostOffice.message}
-              </p>
-            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="addressUpozila">Upazila *</Label>
@@ -438,7 +466,7 @@ const EditStudentForm = ({ studentId }: Props) => {
             />
           </div> */}
           <div className="space-y-2">
-            <Label htmlFor="sscBoard">Board *</Label>
+            <Label htmlFor="sscBoard">Board</Label>
 
             <Controller
               control={control}
@@ -469,7 +497,7 @@ const EditStudentForm = ({ studentId }: Props) => {
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="sscPassingYear">Passing Year *</Label>
+            <Label htmlFor="sscPassingYear">Passing Year</Label>
             <Input
               id="sscPassingYear"
               type="number"
@@ -477,12 +505,12 @@ const EditStudentForm = ({ studentId }: Props) => {
             />
             {errors.sscPassingYear && (
               <p className="text-sm text-destructive">
-                {errors.sscPassingYear.message}
+                {errors.sscPassingYear.message as string}
               </p>
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="sscGpa">GPA *</Label>
+            <Label htmlFor="sscGpa">GPA</Label>
             <Input
               id="sscGpa"
               type="number"
@@ -491,7 +519,7 @@ const EditStudentForm = ({ studentId }: Props) => {
             />
             {errors.sscGpa && (
               <p className="text-sm text-destructive">
-                {errors.sscGpa.message}
+                {errors.sscGpa.message as string}
               </p>
             )}
           </div>

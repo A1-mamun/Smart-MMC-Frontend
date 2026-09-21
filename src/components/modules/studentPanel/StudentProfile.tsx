@@ -31,7 +31,7 @@ const StudentProfile = () => {
             <Row label="Name" value={s.user.name} />
             <Row label="Nickname" value={s.user.nickname || "—"} />
             <Row label="Mobile" value={s.mobile} />
-            <Row label="Blood Group" value={formatBloodGroupLabel(s.bloodGroup)} />
+            <Row label="Blood Group" value={s.bloodGroup ? formatBloodGroupLabel(s.bloodGroup) : "—"} />
             <Row label="College" value={s.college || "—"} />
           </CardContent>
         </Card>
@@ -42,8 +42,16 @@ const StudentProfile = () => {
           <CardContent className="space-y-2 text-sm">
             <Row label="Father" value={`${s.fatherName} (${s.fatherOccupation})`} />
             <Row label="Father Mobile" value={s.fatherMobile} />
-            <Row label="Mother" value={`${s.motherName} (${s.motherOccupation})`} />
-            <Row label="Mother Mobile" value={s.motherMobile} />
+            {/* Mother block is optional — show "—" when nothing's on file. */}
+            <Row
+              label="Mother"
+              value={
+                s.motherName || s.motherOccupation
+                  ? `${s.motherName || "—"} (${s.motherOccupation || "—"})`
+                  : "—"
+              }
+            />
+            <Row label="Mother Mobile" value={s.motherMobile || "—"} />
           </CardContent>
         </Card>
         <Card>
@@ -51,8 +59,12 @@ const StudentProfile = () => {
             <CardTitle>Address</CardTitle>
           </CardHeader>
           <CardContent className="text-sm">
-            {s.addressVillage}, {s.addressPostOffice}, {s.addressUpozila},{" "}
-            {s.addressDistrict}
+            {/* Skip empty parts (village / post office are optional) so
+                the rendered line is only the address components the
+                student has actually filled in. */}
+            {[s.addressVillage, s.addressPostOffice, s.addressUpozila, s.addressDistrict]
+              .filter(Boolean)
+              .join(", ")}
           </CardContent>
         </Card>
         <Card>
@@ -61,9 +73,9 @@ const StudentProfile = () => {
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <Row label="Institute" value={s.sscInstitute} />
-            <Row label="Board" value={formatBoardLabel(s.sscBoard)} />
-            <Row label="Passing Year" value={String(s.sscPassingYear)} />
-            <Row label="GPA" value={Number(s.sscGpa).toFixed(2)} />
+            <Row label="Board" value={s.sscBoard ? formatBoardLabel(s.sscBoard) : "—"} />
+            <Row label="Passing Year" value={s.sscPassingYear ? String(s.sscPassingYear) : "—"} />
+            <Row label="GPA" value={s.sscGpa != null ? Number(s.sscGpa).toFixed(2) : "—"} />
           </CardContent>
         </Card>
         {s.batches && s.batches.length > 0 && (

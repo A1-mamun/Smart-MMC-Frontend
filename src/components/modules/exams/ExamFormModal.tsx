@@ -268,9 +268,18 @@ const ExamFormModal = ({ open, exam, onClose, onSaved }: Props) => {
             <div className="space-y-2">
               {fields.map((field, idx) => {
                 const w = watchedSections?.[idx];
-                const tm = Math.round(
-                  (w?.totalQuestions ?? 0) * (w?.marksPerQuestion ?? 0),
-                );
+                // Guard against NaN: react-hook-form with `valueAsNumber:
+                // true` reports `NaN` for an empty input, and `NaN * 0`
+                // is `NaN`, which then trips React's "Received NaN for the
+                // `value` attribute" warning on the read-only total.
+                // Treat any non-finite operand as 0.
+                const tq = Number.isFinite(w?.totalQuestions)
+                  ? (w?.totalQuestions ?? 0)
+                  : 0;
+                const mpq = Number.isFinite(w?.marksPerQuestion)
+                  ? (w?.marksPerQuestion ?? 0)
+                  : 0;
+                const tm = Math.round(tq * mpq);
                 return (
                   <div
                     key={field.id}

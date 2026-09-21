@@ -1,12 +1,35 @@
 import { baseApi } from "@/redux/api/baseApi";
-import { TStudent } from "@/types/student";
+import {
+  TStudent,
+  TStudentCredentials,
+  TAdmitStudentPayload,
+  TEnrollExistingStudentPayload,
+} from "@/types/student";
 import { TApiResponse } from "@/types/common";
 
 const studentApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
-    admitStudent: build.mutation<TApiResponse<{ student: TStudent; credentials: { studentId: string; initialPassword: string } }>, any>({
+    admitStudent: build.mutation<
+      TApiResponse<{ student: TStudent; credentials: TStudentCredentials }>,
+      TAdmitStudentPayload
+    >({
       query: (data) => ({
         url: "/student/admit",
+        method: "POST",
+        body: data,
+      }),
+      invalidatesTags: ["Student", "Dashboard", "Activity"],
+    }),
+    // Dedicated endpoint for the "old student → new course" branch in
+    // the admit form. Same response shape as `admitStudent` so the
+    // credentials card can render identically regardless of which
+    // endpoint produced the data.
+    enrollExistingStudent: build.mutation<
+      TApiResponse<{ student: TStudent; credentials: TStudentCredentials }>,
+      TEnrollExistingStudentPayload
+    >({
+      query: (data) => ({
+        url: "/student/enroll-existing",
         method: "POST",
         body: data,
       }),
@@ -61,6 +84,7 @@ const studentApi = baseApi.injectEndpoints({
 
 export const {
   useAdmitStudentMutation,
+  useEnrollExistingStudentMutation,
   useGetAllStudentsQuery,
   useGetStudentByIdQuery,
   useUpdateStudentMutation,

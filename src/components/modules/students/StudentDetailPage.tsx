@@ -106,7 +106,7 @@ const StudentDetailPage = ({ params }: Props) => {
           </CardHeader>
           <CardContent className="space-y-1 text-sm">
             <p><span className="text-muted-foreground">Mobile:</span> {student.mobile}</p>
-            <p><span className="text-muted-foreground">Blood:</span> {formatBloodGroupLabel(student.bloodGroup)}</p>
+            <p><span className="text-muted-foreground">Blood:</span> {student.bloodGroup ? formatBloodGroupLabel(student.bloodGroup) : "—"}</p>
             <p><span className="text-muted-foreground">College:</span> {student.college || "—"}</p>
           </CardContent>
         </Card>
@@ -117,8 +117,19 @@ const StudentDetailPage = ({ params }: Props) => {
           <CardContent className="space-y-1 text-sm">
             <p><span className="text-muted-foreground">Father:</span> {student.fatherName} ({student.fatherOccupation})</p>
             <p className="pl-12 text-xs">{student.fatherMobile}</p>
-            <p><span className="text-muted-foreground">Mother:</span> {student.motherName} ({student.motherOccupation})</p>
-            <p className="pl-12 text-xs">{student.motherMobile}</p>
+            {/* Mother block is optional — render "—" when no info. */}
+            {(student.motherName || student.motherOccupation || student.motherMobile) ? (
+              <>
+                {(student.motherName || student.motherOccupation) && (
+                  <p><span className="text-muted-foreground">Mother:</span> {student.motherName || "—"} ({student.motherOccupation || "—"})</p>
+                )}
+                {student.motherMobile && (
+                  <p className="pl-12 text-xs">{student.motherMobile}</p>
+                )}
+              </>
+            ) : (
+              <p><span className="text-muted-foreground">Mother:</span> —</p>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -127,9 +138,9 @@ const StudentDetailPage = ({ params }: Props) => {
           </CardHeader>
           <CardContent className="space-y-1 text-sm">
             <p><span className="text-muted-foreground">Institute:</span> {student.sscInstitute}</p>
-            <p><span className="text-muted-foreground">Board:</span> {formatBoardLabel(student.sscBoard)}</p>
-            <p><span className="text-muted-foreground">Year:</span> {student.sscPassingYear}</p>
-            <p><span className="text-muted-foreground">GPA:</span> {Number(student.sscGpa).toFixed(2)}</p>
+            <p><span className="text-muted-foreground">Board:</span> {student.sscBoard ? formatBoardLabel(student.sscBoard) : "—"}</p>
+            <p><span className="text-muted-foreground">Year:</span> {student.sscPassingYear ?? "—"}</p>
+            <p><span className="text-muted-foreground">GPA:</span> {student.sscGpa != null ? Number(student.sscGpa).toFixed(2) : "—"}</p>
           </CardContent>
         </Card>
       </div>
@@ -139,7 +150,14 @@ const StudentDetailPage = ({ params }: Props) => {
           <CardTitle className="text-base">Address</CardTitle>
         </CardHeader>
         <CardContent className="text-sm">
-          <p>{student.addressVillage}, {student.addressPostOffice}, {student.addressUpozila}, {student.addressDistrict}</p>
+          {/* Village + Post Office are optional — skip them in the line
+              when missing so the rendered address only contains parts
+              that actually have a value. */}
+          <p>
+            {[student.addressVillage, student.addressPostOffice, student.addressUpozila, student.addressDistrict]
+              .filter(Boolean)
+              .join(", ")}
+          </p>
         </CardContent>
       </Card>
 

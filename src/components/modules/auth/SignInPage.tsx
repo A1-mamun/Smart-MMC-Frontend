@@ -16,12 +16,12 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const schema = z.object({
-  studentId: z
+  mobile: z
     .string()
-    .min(1, "Student ID is required")
+    .min(1, "Mobile number is required")
     .regex(
-      /^(SMC-[A-Z0-9-]+|2[5-8][1-4]\d{3})$/i,
-      'Use "SMC-..." format or your HSC student ID (e.g. 271200)',
+      /^01[3-9]\d{8}$/,
+      "Use a valid BD mobile number, e.g. 01712345678",
     ),
   password: z.string().min(1, "Password is required"),
 });
@@ -43,7 +43,7 @@ const SignInPage = () => {
     formState: { errors },
   } = useForm<FormData, any, FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { studentId: "", password: "" },
+    defaultValues: { mobile: "", password: "" },
   });
 
   const onSubmit = async (data: FormData) => {
@@ -83,15 +83,15 @@ const SignInPage = () => {
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="studentId">Student ID</Label>
+            <Label htmlFor="mobile">Mobile Number</Label>
             <Input
-              id="studentId"
-              placeholder="e.g. 271200 or SMC-ADMIN-001"
-              {...register("studentId")}
+              id="mobile"
+              placeholder="e.g. 01712345678"
+              {...register("mobile")}
               autoComplete="username"
             />
-            {errors.studentId && (
-              <p className="text-sm text-destructive">{errors.studentId.message}</p>
+            {errors.mobile && (
+              <p className="text-sm text-destructive">{errors.mobile.message}</p>
             )}
           </div>
           <div className="space-y-2">

@@ -87,6 +87,7 @@ const AdminUsersPage = () => {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>User ID</TableHead>
+                  <TableHead>Mobile</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
                   {isSuperAdmin && (
@@ -98,7 +99,7 @@ const AdminUsersPage = () => {
                 {isLoading ? (
                   <TableRow>
                     <TableCell
-                      colSpan={isSuperAdmin ? 5 : 4}
+                      colSpan={isSuperAdmin ? 6 : 5}
                       className="h-20 text-center text-muted-foreground"
                     >
                       Loading...
@@ -107,7 +108,7 @@ const AdminUsersPage = () => {
                 ) : rows.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={isSuperAdmin ? 5 : 4}
+                      colSpan={isSuperAdmin ? 6 : 5}
                       className="h-20 text-center text-muted-foreground"
                     >
                       No admins yet.
@@ -128,6 +129,15 @@ const AdminUsersPage = () => {
                         </TableCell>
                         <TableCell className="font-mono text-xs">
                           {u.studentId}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {u.mobile ? (
+                            u.mobile
+                          ) : (
+                            <span className="text-muted-foreground italic font-sans">
+                              none
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Badge

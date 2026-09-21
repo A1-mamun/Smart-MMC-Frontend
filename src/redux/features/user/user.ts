@@ -6,6 +6,7 @@ type TUserListItem = {
   studentId: string;
   name: string;
   nickname?: string | null;
+  mobile?: string | null;
   role: "SUPER_ADMIN" | "ADMIN" | "STUDENT";
   status: string;
   mustChangePassword: boolean;
@@ -13,16 +14,24 @@ type TUserListItem = {
 };
 
 type TCreateUserPayload = {
-  studentId: string;
+  // `studentId` is server-generated (SMC-ADMIN-NNN) — see
+  // `auth.service.ts generateNextAdminStudentId`. The super admin only
+  // supplies name, password, optional mobile, and a role.
   name: string;
   password: string;
   role: "SUPER_ADMIN" | "ADMIN" | "STUDENT";
+  // Optional — admins can attach a BD mobile so they can also log in
+  // via mobile + password (mirrors students). Backend persists as NULL
+  // when omitted.
+  mobile?: string;
 };
 
 type TUpdateUserPayload = {
   name?: string;
-  studentId?: string;
   password?: string;
+  // Empty string → backend clears the column; valid BD mobile → sets
+  // it; missing key → column untouched.
+  mobile?: string | null;
 };
 
 const userApi = baseApi.injectEndpoints({

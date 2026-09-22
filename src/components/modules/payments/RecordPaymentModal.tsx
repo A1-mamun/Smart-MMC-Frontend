@@ -61,8 +61,19 @@ type Props = {
   preselect?: TCoursePaymentSummary;
   /** Fired after the payment is recorded so the parent can refetch lists. */
   onSuccess?: () => void;
-  /** Fired with the created payment so the parent can show a receipt dialog. */
-  onRecorded?: (payment: TPaymentRecord) => void;
+  /**
+   * Fired with the created payment so the parent can show a receipt dialog.
+   * The optional second argument carries the override status the staff
+   * member selected (e.g. "PAID", "PARTIAL") — useful for receipts that
+   * need to render the correct payment status badge and PAID seal even
+   * when the override forces a status that doesn't match the actual
+   * paid-vs-fee math (e.g. a partial payment that's been promoted to
+   * "PAID" by manual override).
+   */
+  onRecorded?: (
+    payment: TPaymentRecord,
+    overrideStatus?: "PAID" | "PARTIAL" | "PENDING" | "_auto",
+  ) => void;
 };
 
 const RecordPaymentModal = ({
@@ -162,7 +173,7 @@ const RecordPaymentModal = ({
       // dialog (which handles printing). Then close this modal so the staff
       // member sees the receipt dialog immediately.
       const created = (res?.data as TPaymentRecord) ?? null;
-      if (created) onRecorded?.(created);
+      if (created) onRecorded?.(created, data.overrideStatus);
       onSuccess?.();
       reset();
       onClose();

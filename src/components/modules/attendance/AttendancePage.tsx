@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import dayjs from "dayjs";
+import { ArrowLeftRight } from "lucide-react";
 import { useGetTodayAttendanceQuery } from "@/redux/features/attendance/attendance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -109,8 +110,7 @@ const AttendancePage = () => {
                 <TableRow>
                   <TableHead>Student</TableHead>
                   <TableHead>Student ID</TableHead>
-                  <TableHead>Day</TableHead>
-                  <TableHead>Date</TableHead>
+                  <TableHead>Recorded for</TableHead>
                   <TableHead>Check-in</TableHead>
                   <TableHead>Method</TableHead>
                 </TableRow>
@@ -119,7 +119,7 @@ const AttendancePage = () => {
                 {isLoading ? (
                   <TableRow>
                     <TableCell
-                      colSpan={6}
+                      colSpan={5}
                       className="h-20 text-center text-muted-foreground"
                     >
                       Loading...
@@ -128,7 +128,7 @@ const AttendancePage = () => {
                 ) : data?.data?.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={6}
+                      colSpan={5}
                       className="h-20 text-center text-muted-foreground"
                     >
                       No one has checked in yet today.
@@ -136,7 +136,12 @@ const AttendancePage = () => {
                   </TableRow>
                 ) : (
                   data?.data?.map((a) => (
-                    <TableRow key={a.id}>
+                    <TableRow
+                      key={a.id}
+                      className={
+                        a.swapFromDate ? "bg-amber-50/40" : undefined
+                      }
+                    >
                       <TableCell className="font-medium">
                         {a.student.user.name}
                       </TableCell>
@@ -144,15 +149,29 @@ const AttendancePage = () => {
                         {a.student.user.studentId}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary">
-                          {dayjs(a.checkInAt).format("ddd")}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary">
+                            {dayjs(a.date).format("ddd")}
+                          </Badge>
+                          <span className="text-xs">
+                            {dayjs(a.date).format("MMM D")}
+                          </span>
+                          {a.swapFromDate && (
+                            <Badge
+                              variant="warning"
+                              className="text-[10px] gap-1"
+                            >
+                              <ArrowLeftRight className="h-2.5 w-2.5" />
+                              scanned {dayjs(a.swapFromDate).format("ddd")}
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
-                      <TableCell className="text-xs">
-                        {dayjs(a.checkInAt).format("MMM D")}
-                      </TableCell>
-                      <TableCell>
+                      <TableCell className="font-mono text-xs">
                         {dayjs(a.checkInAt).format("h:mm A")}
+                        <span className="text-muted-foreground ml-1">
+                          {dayjs(a.checkInAt).format("MMM D")}
+                        </span>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">{a.method}</Badge>

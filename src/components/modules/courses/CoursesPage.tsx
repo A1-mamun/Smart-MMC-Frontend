@@ -1,11 +1,12 @@
 "use client";
 import { useState } from "react";
-import { Plus, Edit, Trash2, Power, X } from "lucide-react";
+import { Plus, Edit, Trash2, Power, X, CheckCircle2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import {
   useCreateCourseMutation,
   useDeleteCourseMutation,
   useGetAllCoursesQuery,
+  useMarkCourseCompletedMutation,
   useToggleCourseActiveMutation,
   useUpdateCourseMutation,
 } from "@/redux/features/course/course";
@@ -163,6 +164,8 @@ const CoursesPage = () => {
   const [deleteCourse] = useDeleteCourseMutation();
   const [toggleActive, { isLoading: toggling }] =
     useToggleCourseActiveMutation();
+  const [markCompleted, { isLoading: markingCompleted }] =
+    useMarkCourseCompletedMutation();
   const [editing, setEditing] = useState<TCourse | null>(null);
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"active" | "inactive">("active");
@@ -170,6 +173,10 @@ const CoursesPage = () => {
   const allCourses = data?.data || [];
   const activeCourses = allCourses.filter((c) => c.isActive);
   const inactiveCourses = allCourses.filter((c) => !c.isActive);
+  // "Completed" is orthogonal to Active/Inactive — a graduated batch
+  // can still be marked Active so its schedule remains readable, but
+  // its students are un-gated for new enrollments. Count it separately.
+  const completedCount = allCourses.filter((c) => c.isCompleted).length;
   const displayedCourses =
     activeTab === "active" ? activeCourses : inactiveCourses;
 
@@ -274,6 +281,24 @@ const CoursesPage = () => {
     }
   };
 
+  const handleMarkCompleted = async (course: TCourse) => {
+    const willComplete = !course.isCompleted;
+    try {
+      await markCompleted({
+        id: course.id,
+        isCompleted: willComplete,
+      }).unwrap();
+      toast.success(
+        willComplete
+          ? `Marked "${formatCourseLabel(course.name)}" as completed`
+          : `Re-opened "${formatCourseLabel(course.name)}"`,
+      );
+      refetch();
+    } catch (err: any) {
+      toast.error(err?.data?.message || "Failed");
+    }
+  };
+
   const openCreate = () => {
     setEditing(null);
     reset({
@@ -293,6 +318,7 @@ const CoursesPage = () => {
           <h2 className="text-2xl font-bold tracking-tight">Courses</h2>
           <p className="text-sm text-muted-foreground">
             {activeCourses.length} active · {inactiveCourses.length} inactive
+            {completedCount > 0 ? ` · ${completedCount} completed` : ""}
           </p>
         </div>
         <Dialog
@@ -534,11 +560,19 @@ const CoursesPage = () => {
                   <CardHeader>
                     <CardTitle className="flex items-center justify-between gap-2">
                       <span>{formatCourseLabel(course.name)}</span>
-                      <Badge
-                        variant={course.isActive ? "success" : "secondary"}
-                      >
-                        {course.isActive ? "Active" : "Inactive"}
-                      </Badge>
+                      <div className="flex items-center gap-1.5">
+                        {course.isCompleted && (
+                          <Badge variant="warning" className="text-[10px]">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Completed
+                          </Badge>
+                        )}
+                        <Badge
+                          variant={course.isActive ? "success" : "secondary"}
+                        >
+                          {course.isActive ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -604,6 +638,27 @@ const CoursesPage = () => {
                         onClick={() => handleEdit(course)}
                       >
                         <Edit className="h-4 w-4" /> Edit
+                      </Button>
+                      <Button
+                        variant={course.isCompleted ? "outline" : "default"}
+                        size="sm"
+                        onClick={() => handleMarkCompleted(course)}
+                        disabled={markingCompleted}
+                        title={
+                          course.isCompleted
+                            ? "Re-open this course (re-enables the enrollment gate)"
+                            : "Mark this batch as completed (un-gates students to enroll in another course)"
+                        }
+                      >
+                        {course.isCompleted ? (
+                          <>
+                            <RotateCcw className="h-4 w-4" /> Re-open
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="h-4 w-4" /> Mark Complete
+                          </>
+                        )}
                       </Button>
                       <Button
                         variant={course.isActive ? "secondary" : "default"}

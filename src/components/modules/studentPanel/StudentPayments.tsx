@@ -38,14 +38,70 @@ const StudentPayments = () => {
     const batchLabel = (student.batches ?? [])
       .map((b) => `HSC ${String(b.hscBatch).replace(/^BATCH_/, "")}`)
       .join(", ");
+
+    /*
+     * Compute the receipt's status from the per-payment math, NOT from
+     * `student.paymentStatus`. The profile snapshot represents the
+     * student's overall enrollment status which can be stale (e.g. the
+     * admin recorded a payment via the override → PAID, but a re-fetch
+     * hasn't landed yet, OR an override was applied to a different
+     * enrollment). The receipt is a historical document for THIS
+     * specific payment, so its status must reflect fee-vs-paid for the
+     * matching enrollment at the moment the payment was recorded.
+     *
+     * Concretely:
+     *   fee         = the enrollment's course fee
+     *   previouslyPaid = sum of all earlier payments for the same
+     *                    enrollment (paid before this one)
+     *   totalPaidRunning = previouslyPaid + this payment's amount
+     *   paymentStatus =
+     *     - PAID  iff totalPaidRunning >= fee AND fee > 0
+     *     - PARTIAL iff 0 < totalPaidRunning < fee
+     *     - PENDING otherwise
+     *
+     * Because we ignore override status here, the PAID seal will NOT
+     * render for a partial-but-override-PAID payment — which is exactly
+     * what the student-panel print flow needs. The post-record receipt
+     * (the dialog right after the admin clicks Record Payment) is the
+     * place where the override PAID seal belongs; a receipt printed
+     * later should reflect the actual money math.
+     */
+    const scId = payment.studentCourseId;
+    const enrollment = (student.studentCourses ?? []).find(
+      (sc) => sc.id === scId,
+    );
+    const fee = enrollment ? Number(enrollment.course?.fee ?? 0) : undefined;
+    const previouslyPaid = (student.payments ?? [])
+      .filter(
+        (p) =>
+          p.studentCourseId === scId &&
+          p.id !== payment.id &&
+          // payments earlier in time than this one
+          (!p.paidAt || !payment.paidAt
+            ? true
+            : new Date(p.paidAt).getTime() < new Date(payment.paidAt).getTime()),
+      )
+      .reduce((sum, p) => sum + Number(p.amount), 0);
+    const totalPaidRunning = previouslyPaid + Number(payment.amount);
+
+    let derivedStatus: "PAID" | "PARTIAL" | "PENDING" = "PENDING";
+    if (fee !== undefined && fee > 0) {
+      if (totalPaidRunning >= fee) derivedStatus = "PAID";
+      else if (totalPaidRunning > 0) derivedStatus = "PARTIAL";
+    } else if (totalPaidRunning > 0) {
+      derivedStatus = "PARTIAL";
+    }
+
     printPaymentReceipt({
       payment,
       studentName: student.user?.name || "—",
       studentId: student.user?.studentId || "—",
       studentMobile: student.mobile,
       studentBatch: batchLabel || undefined,
-      paymentStatus: student.paymentStatus,
+      paymentStatus: derivedStatus,
       courseName: payment.studentCourse?.course?.name,
+      fee,
+      previouslyPaid,
       collectedByName: currentUser?.name,
       collectedByRole: currentUser?.role,
     });

@@ -225,48 +225,102 @@ const PaymentReceipt = ({
 
       <Separator className="my-3 bg-black/40" />
 
-      {/* Breakdown */}
+      {/* Breakdown — wrapped in a relative container so the PAID seal
+          can be absolutely-positioned as a watermark behind the table
+          rows. The seal sits dead-center vertically and horizontally,
+          drops its opacity so the row text stays readable, and only
+          appears when the enrollment is fully settled (balance 0,
+          which also covers manual overrides to PAID). */}
       {fee !== undefined && fee !== null ? (
-        <div className="border border-black/40 rounded-sm overflow-hidden text-sm">
-          <div className="grid grid-cols-2 px-3 py-2 bg-neutral-100">
-            <span className="font-medium">Description</span>
-            <span className="font-medium text-right">Amount</span>
-          </div>
-          <div className="grid grid-cols-2 px-3 py-1.5">
-            <span>Total Course Fee</span>
-            <span className="text-right">
-              <Money value={totalFee} />
-            </span>
-          </div>
-          <div className="grid grid-cols-2 px-3 py-1.5 border-t border-black/20">
-            <span>Previously Paid</span>
-            <span className="text-right">
-              <Money value={previous} />
-            </span>
-          </div>
-          <div className="grid grid-cols-2 px-3 py-1.5 border-t border-black/20">
-            <span>Paid Today</span>
-            <span className="text-right">
-              <Money value={amount} />
-            </span>
-          </div>
-          <div className="grid grid-cols-2 px-3 py-1.5 border-t border-black/20 font-semibold">
-            <span>Total Paid</span>
-            <span className="text-right">
-              <Money value={totalPaidRunning} />
-            </span>
-          </div>
-          <div className="grid grid-cols-2 px-3 py-1.5 border-t border-black/40 bg-neutral-100 font-semibold">
-            <span>Balance Due</span>
-            <span className="text-right">
-              <Money value={balance} />
-            </span>
+        /*
+         * Watermark PAID seal layout.
+         *
+         * The outer container is `overflow-visible` (not `overflow-hidden`)
+         * so the seal — which is intentionally sized LARGER than the table
+         * itself — is not clipped by the rounded border. The seal sits in
+         * `absolute inset-0` with `flex items-center justify-center` so its
+         * visual centre coincides with the table's centre, then a
+         * `style={{ opacity: 0.22 }}` drops it to a true watermark density.
+         *
+         * To keep the seal visible BEHIND the header ("Description / Amount")
+         * and footer ("Balance Due") bands, those two bands are rendered
+         * with `bg-neutral-100/70` instead of the opaque `bg-neutral-100` so
+         * the emerald ring + PAID text bleed through. Body rows keep their
+         * white background to preserve readability of the numbers.
+         */
+        <div className="relative border border-black/40 rounded-sm overflow-visible text-sm">
+          {balance === 0 && (
+            <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-visible">
+              <div style={{ opacity: 0.5 }}>
+                <PaymentSeal
+                  size={280}
+                  rotate={-18}
+                  color="#047857"
+                  dateLabel={dayjs(payment.paidAt ?? undefined).format(
+                    "MMM D, YYYY",
+                  )}
+                />
+              </div>
+            </div>
+          )}
+          {/* Row content sits above the seal via relative + z-10. The
+              header and footer rows use a semi-transparent background
+              so the watermark stays visible through them. */}
+          <div className="relative z-10">
+            <div className="grid grid-cols-2 px-3 py-2 bg-neutral-100/70">
+              <span className="font-medium">Description</span>
+              <span className="font-medium text-right">Amount</span>
+            </div>
+            <div className="grid grid-cols-2 px-3 py-1.5">
+              <span>Total Course Fee</span>
+              <span className="text-right">
+                <Money value={totalFee} />
+              </span>
+            </div>
+            <div className="grid grid-cols-2 px-3 py-1.5 border-t border-black/20">
+              <span>Previously Paid</span>
+              <span className="text-right">
+                <Money value={previous} />
+              </span>
+            </div>
+            <div className="grid grid-cols-2 px-3 py-1.5 border-t border-black/20">
+              <span>Paid Today</span>
+              <span className="text-right">
+                <Money value={amount} />
+              </span>
+            </div>
+            <div className="grid grid-cols-2 px-3 py-1.5 border-t border-black/20 font-semibold">
+              <span>Total Paid</span>
+              <span className="text-right">
+                <Money value={totalPaidRunning} />
+              </span>
+            </div>
+            <div className="grid grid-cols-2 px-3 py-1.5 border-t border-black/40 bg-neutral-100/70 font-semibold">
+              <span>Balance Due</span>
+              <span className="text-right">
+                <Money value={balance} />
+              </span>
+            </div>
           </div>
         </div>
       ) : (
-        <div className="border border-black/40 rounded-sm px-3 py-3 flex items-center justify-between text-sm">
-          <span className="font-medium">Amount Paid</span>
-          <span className="font-semibold text-base">
+        <div className="relative border border-black/40 rounded-sm px-3 py-3 flex items-center justify-between text-sm">
+          {balance === 0 && (
+            <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-visible">
+              <div style={{ opacity: 0.5 }}>
+                <PaymentSeal
+                  size={180}
+                  rotate={-18}
+                  color="#047857"
+                  dateLabel={dayjs(payment.paidAt ?? undefined).format(
+                    "MMM D, YYYY",
+                  )}
+                />
+              </div>
+            </div>
+          )}
+          <span className="relative z-10 font-medium">Amount Paid</span>
+          <span className="relative z-10 font-semibold text-base">
             <Money value={amount} />
           </span>
         </div>
@@ -292,23 +346,6 @@ const PaymentReceipt = ({
       <p className="mt-10 text-center text-xs text-neutral-600">
         Thank you for your payment.
       </p>
-
-      {/*
-       * Circular PAID seal — pinned to the bottom-right of the receipt.
-       * Only shown when the enrollment is fully settled (balance 0,
-       * which also covers manual overrides to PAID). The `relative`
-       * wrapper on the receipt root lets us place it cleanly inside the
-       * padding without overflowing the printed page.
-       */}
-      {balance === 0 && (
-        <div className="mt-6 flex justify-end pr-2">
-          <PaymentSeal
-            size={150}
-            rotate={-20}
-            dateLabel={dayjs(payment.paidAt ?? undefined).format("MMM D, YYYY")}
-          />
-        </div>
-      )}
     </div>
   );
 };

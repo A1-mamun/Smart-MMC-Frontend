@@ -8,7 +8,8 @@ import { Loader2, ShieldCheck, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { useChangePasswordMutation } from "@/redux/features/auth/authApi";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
-import { setUser, useCurrentToken, useCurrentUser } from "@/redux/features/auth/authSlice";
+import { logOut, useCurrentUser } from "@/redux/features/auth/authSlice";
+import { logoutUser } from "@/services/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -56,7 +57,6 @@ const ForceChangePasswordModal = () => {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const user = useAppSelector(useCurrentUser);
-  const token = useAppSelector(useCurrentToken);
   const [changePassword, { isLoading }] = useChangePasswordMutation();
   const open = !!user?.mustChangePassword;
 
@@ -85,21 +85,30 @@ const ForceChangePasswordModal = () => {
         newPassword: data.newPassword,
       }).unwrap();
 
-      // Patch the auth slice so the layout guard closes this modal
-      // immediately — no full sign-out / sign-in round-trip needed.
-      // We keep the existing access token; only the mustChangePassword
-      // flag flips off.
-      if (user) {
-        dispatch(
-          setUser({
-            user: { ...user, mustChangePassword: false },
-            token: token || ("" as string),
-          }),
-        );
-      }
-
-      toast.success("Password updated. Welcome aboard!");
+      /*
+       * First-login / temporary-password flow: once the new password is
+       * saved we deliberately SIGN OUT and bounce the user back to the
+       * sign-in page so they authenticate with their fresh credentials.
+       * This matches the request: "after update password for first time
+       * login it should redirect to login again with the new credential".
+       *
+       * Steps:
+       *  1. Reset the form so any in-flight typed input doesn't bleed
+       *     into the next mount.
+       *  2. Clear redux auth state via `logOut()` (drops user + token).
+       *  3. Delete the refresh-token cookie via the server action so
+       *     the next /signin render doesn't see a stale session.
+       *  4. Toast and route to /signin.
+       */
       reset();
+
+      dispatch(logOut());
+      await logoutUser();
+
+      toast.success(
+        "Password updated. Please sign in again with your new password.",
+      );
+      router.replace("/signin");
     } catch (err: any) {
       toast.error(err?.data?.message || "Failed to change password");
     }

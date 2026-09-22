@@ -5,6 +5,7 @@ import {
   TExamDetail,
   TExam,
   TMyResult,
+  TMyUpcomingExam,
 } from "@/types/exam";
 
 type SectionInput = {
@@ -238,6 +239,32 @@ const examApi = baseApi.injectEndpoints({
       },
       providesTags: ["ExamResult"],
     }),
+    /*
+     * Upcoming exams for the signed-in student — every exam whose
+     * `examDate >= today` across the student's active enrollments,
+     * regardless of publish state. Drives the "Upcoming" tab on the
+     * student panel and is intentionally separate from `getMyResults`
+     * (which is past + published).
+     */
+    getMyUpcomingExams: build.query<
+      TApiResponse<TMyUpcomingExam[]> & { meta?: TPaginationMeta },
+      Record<string, unknown> | void
+    >({
+      query: (params) => {
+        const q = new URLSearchParams();
+        if (params) {
+          Object.entries(params).forEach(([k, v]) => {
+            if (v !== undefined && v !== null && v !== "") q.append(k, String(v));
+          });
+        }
+        const qs = q.toString();
+        return {
+          url: `/exam/me/upcoming${qs ? `?${qs}` : ""}`,
+          method: "GET",
+        };
+      },
+      providesTags: ["ExamResult"],
+    }),
   }),
 });
 
@@ -254,4 +281,5 @@ export const {
   useUpsertResultMutation,
   useBulkResultsMutation,
   useGetMyResultsQuery,
+  useGetMyUpcomingExamsQuery,
 } = examApi;

@@ -111,6 +111,13 @@ export type TCourse = {
   fee: string | number;
   hscBatch: THscBatch;
   isActive: boolean;
+  // Admin-set batch-graduation flag. A student cannot enroll in another
+  // course while they have an active enrollment in a course whose
+  // isCompleted is false. Distinct from StudentCourse.isCompleted
+  // (which tracks per-enrollment course-grade completion).
+  isCompleted?: boolean;
+  completedAt?: string | null;
+  completedBy?: string | null;
   batchDays?: TCourseBatchDay[];
 };
 
@@ -145,6 +152,11 @@ export type TAttendance = {
   checkInAt: string;
   method: "NFC" | "MANUAL" | "ADMIN";
   deviceId?: string | null;
+  // When the row is a make-up swap (the recorded `date` is the
+  // student's dedicated class day but they actually scanned on a
+  // peer batch's day), this carries the actual scan date. Null for
+  // normal attendance.
+  swapFromDate?: string | null;
 };
 
 export type TAttendanceWithStudent = TAttendance & {
@@ -227,6 +239,12 @@ export type TStudentQuery = {
   hasDue?: boolean;
   /** When true, keeps only students enrolled in an active course. */
   activeCoursesOnly?: boolean;
+  /**
+   * ISO yyyy-mm-dd. Resolves to "students enrolled in a class on this
+   * weekday minus students with an Attendance row on this exact date".
+   * Used by the absent-warning SMS picker on /dashboard/sms.
+   */
+  absentOnDate?: string;
   page?: number;
   limit?: number;
   sortBy?: string;

@@ -17,6 +17,7 @@ type TCourseInput = {
   fee?: number;
   hscBatch?: string;
   isActive?: boolean;
+  isCompleted?: boolean;
   batchDays?: TBatchDayInput[];
 };
 
@@ -113,6 +114,30 @@ const courseApi = baseApi.injectEndpoints({
         "Dashboard",
       ],
     }),
+    // Dedicated lifecycle hook (vs the generic PATCH /:id) so we can
+    // stamp completedAt/completedBy server-side and invalidate the
+    // Student cache — flipping this flag un-gates students and the
+    // admit page must reflect that immediately.
+    markCourseCompleted: build.mutation<
+      TApiResponse<TCourse>,
+      { id: string; isCompleted?: boolean }
+    >({
+      query: ({ id, isCompleted }) => ({
+        url: `/course/${id}/mark-completed`,
+        method: "PATCH",
+        body: { isCompleted: isCompleted ?? true },
+      }),
+      invalidatesTags: (_r, _e, { id }) => [
+        { type: "Course", id },
+        { type: "Course", id: "LIST" },
+        // The student-service enrollment gate reads course.isCompleted,
+        // so any change must invalidate the Student cache so the admit
+        // form's error path reflects the new state without a manual
+        // reload.
+        "Student",
+        "Dashboard",
+      ],
+    }),
   }),
 });
 
@@ -123,4 +148,5 @@ export const {
   useUpdateCourseMutation,
   useDeleteCourseMutation,
   useToggleCourseActiveMutation,
+  useMarkCourseCompletedMutation,
 } = courseApi;

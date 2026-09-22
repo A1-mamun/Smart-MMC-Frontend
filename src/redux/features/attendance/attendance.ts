@@ -5,7 +5,18 @@ import { TApiResponse } from "@/types/common";
 type TCheckInResult = {
   student: { studentId: string; name: string; nickname?: string | null };
   attendanceId: string;
+  /**
+   * The day the attendance row was stamped for — the student's
+   * dedicated class day. May equal the actual scan date (normal
+   * check-in) or a different day (make-up swap).
+   */
   date: string;
+  /**
+   * When set, the student physically scanned on a peer batch's day
+   * and the row was recorded for their dedicated day. Carries the
+   * actual scan date as an ISO yyyy-mm-dd string.
+   */
+  swapFromDate?: string | null;
   checkInAt: string;
   method: string;
   isFirstCheckIn: boolean;
@@ -21,6 +32,14 @@ const attendanceApi = baseApi.injectEndpoints({
         url: "/attendance/check-in",
         method: "POST",
         body: data,
+        // The /attendance/check-in endpoint is gated by the backend's
+        // DEVICE_SECRET — the barcode scanner page is opened on a
+        // shared kiosk so we can't reuse the admin's JWT. Pull the
+        // value from NEXT_PUBLIC_DEVICE_SECRET (must match backend .env).
+        headers: {
+          "x-device-secret":
+            process.env.NEXT_PUBLIC_DEVICE_SECRET || "",
+        },
       }),
       invalidatesTags: ["Attendance", "Dashboard"],
     }),

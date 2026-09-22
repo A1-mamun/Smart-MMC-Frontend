@@ -110,8 +110,60 @@ export type TMyResult = {
   courseId: string;
   courseName: string;
   totalMarks: number;
+  /**
+   * Whether the parent exam's results are published. The
+   * `/exam/me/results` endpoint filters server-side to published exams
+   * only, but the frontend still gates mark display on this flag as a
+   * safety net — if any code path ever relaxes the filter, students
+   * won't accidentally see unpublished marks.
+   */
+  isResultPublished: boolean;
+  /**
+   * Whether this entry corresponds to a real `ExamResult` row for the
+   * student. When `false`, the student is enrolled in the course and
+   * the exam is published, but the admin has not yet added the student
+   * to that exam's roster. Marks are zeroed in that case and the
+   * frontend renders an "awaiting your marks" notice.
+   */
+  hasResultRow: boolean;
   obtainedMarks: number;
   highestMarks: number;
   rank: number | null;
   sections: TMyResultSection[];
+};
+
+/**
+ * Per-section summary attached to upcoming exam listings so the student
+ * panel's details dialog can render the breakdown (Section / Type /
+ * Questions / Marks per question / Total) without a second round-trip.
+ * No result marks are surfaced — students should never see other
+ * students' marks or personal details through this payload.
+ */
+export type TMyUpcomingExamSection = {
+  id: string;
+  type: ExamSectionType;
+  name: string;
+  totalQuestions: number;
+  marksPerQuestion: number;
+  totalMarks: number;
+  position: number;
+};
+
+/**
+ * Upcoming exam on a student's enrolled courses. Returned by
+ * `GET /exam/me/upcoming` — every exam whose `examDate >= today` is
+ * included whether results are published or not, so the student panel
+ * can show the full schedule.
+ */
+export type TMyUpcomingExam = {
+  id: string;
+  title: string;
+  syllabus: string;
+  examDate: string;
+  isResultPublished: boolean;
+  courseId: string;
+  courseName: string;
+  totalMarks: number;
+  sectionCount: number;
+  sections: TMyUpcomingExamSection[];
 };

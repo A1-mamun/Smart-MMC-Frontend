@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Filter, Wallet, Activity } from "lucide-react";
+import { CalendarDays, Filter, Wallet, Activity, AlertTriangle } from "lucide-react";
 import dayjs from "dayjs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,13 @@ export type QuickScenarioState = {
   hasDue: boolean;
   /** Students enrolled in at least one active course. */
   activeCoursesOnly: boolean;
+  /**
+   * ISO yyyy-mm-dd. When set, the cohort narrows to students who were
+   * enrolled in a class on this date but have NO attendance row for it.
+   * Powers the absent-warning manual filter on the SMS panel. Caller
+   * is expected to cap to today or earlier (the backend clamps as well).
+   */
+  absentOnDate: string;
 };
 
 export const EMPTY_SCENARIO: QuickScenarioState = {
@@ -47,6 +54,7 @@ export const EMPTY_SCENARIO: QuickScenarioState = {
   // enrollments are all in archived / inactive courses. Users who want to
   // message every student (active + archived) can flip the toggle off.
   activeCoursesOnly: true,
+  absentOnDate: "",
 };
 
 type Props = {
@@ -209,11 +217,35 @@ const QuickScenarioFilters = ({ value, onChange }: Props) => {
           </div>
         </div>
 
+        {/* Row: absent-warning picker */}
+        <div className="space-y-1">
+          <Label htmlFor="absent-date" className="text-xs">
+            Class absent on date (warning)
+          </Label>
+          <div className="relative">
+            <AlertTriangle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              id="absent-date"
+              type="date"
+              value={value.absentOnDate}
+              max={todayIso()}
+              onChange={(e) => set({ absentOnDate: e.target.value })}
+              className="pl-9"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Lists students enrolled in a class on this date but with no
+            attendance row. Pair with the warning template configured in
+            Settings.
+          </p>
+        </div>
+
         {(value.classDate ||
           value.classTime ||
           value.scenarioCourses.length > 0 ||
           value.hasDue ||
-          value.activeCoursesOnly) && (
+          value.activeCoursesOnly ||
+          value.absentOnDate) && (
           <div className="flex justify-end">
             <button
               type="button"

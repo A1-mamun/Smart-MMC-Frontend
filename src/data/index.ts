@@ -12,6 +12,7 @@ import {
   UserCog,
   MessageSquare,
   Award,
+  Settings,
 } from "lucide-react";
 
 export type NavItem = {
@@ -29,6 +30,7 @@ export const adminNavItems: NavItem[] = [
   { label: "Payments", href: "/dashboard/payments", icon: CreditCard },
   { label: "Attendance", href: "/dashboard/attendance", icon: CalendarCheck2 },
   { label: "SMS", href: "/dashboard/sms", icon: MessageSquare },
+  { label: "Settings", href: "/dashboard/settings", icon: Settings },
   { label: "Activity Log", href: "/dashboard/activity", icon: Activity },
   { label: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { label: "Admin Users", href: "/dashboard/users", icon: Shield, superAdminOnly: true },

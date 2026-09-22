@@ -14,12 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCreateUserMutation } from "@/redux/features/user/user";
 
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/;
@@ -31,7 +26,7 @@ const schema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(100),
   // No `studentId` field — the backend mints the next SMC-ADMIN-NNN
   // slot at creation time so the super admin only has to supply the
-  // person's name, an initial password, and optionally a phone.
+  // person's name, an initial password, and a mobile.
   password: z
     .string()
     .min(6, "Password must be at least 6 characters")
@@ -39,13 +34,14 @@ const schema = z.object({
       passwordRegex,
       "Password must include uppercase, lowercase, and a number",
     ),
-  // Optional — the admin can sign in with mobile + password instead of
-  // studentId. Empty string is treated as "no mobile".
+  // Required — admins sign in with mobile + password (mirrors students).
+  // The backend enforces the same gate (see user.validation.ts), but we
+  // mark it required here too so the form blocks submission client-side
+  // and the user gets the message under the input immediately.
   mobile: z
     .string()
-    .regex(mobileRegex, "Use a valid BD mobile, e.g. 01712345678")
-    .optional()
-    .or(z.literal("").transform(() => undefined)),
+    .min(1, "Mobile number is required")
+    .regex(mobileRegex, "Use a valid BD mobile, e.g. 01712345678"),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -56,15 +52,15 @@ type Props = {
   onSuccess?: () => void;
 };
 
-const generatePassword = (length = 10) => {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
-  const out: string[] = [];
-  for (let i = 0; i < length; i++) {
-    out.push(chars[Math.floor(Math.random() * chars.length)]);
-  }
-  // Ensure policy: at least one upper, one lower, one digit.
-  return out.join("");
-};
+// const generatePassword = (length = 10) => {
+//   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+//   const out: string[] = [];
+//   for (let i = 0; i < length; i++) {
+//     out.push(chars[Math.floor(Math.random() * chars.length)]);
+//   }
+//   // Ensure policy: at least one upper, one lower, one digit.
+//   return out.join("");
+// };
 
 const CreateAdminModal = ({ open, onClose, onSuccess }: Props) => {
   const [createUser, { isLoading }] = useCreateUserMutation();
@@ -72,9 +68,11 @@ const CreateAdminModal = ({ open, onClose, onSuccess }: Props) => {
   // Server-minted identifier (e.g. "SMC-ADMIN-007") + the values the
   // super admin actually entered — surfaced together in the success
   // card so they can hand the credentials off in one shot.
-  const [generated, setGenerated] = useState<
-    { studentId: string; password: string; mobile: string | null } | null
-  >(null);
+  const [generated, setGenerated] = useState<{
+    studentId: string;
+    password: string;
+    mobile: string | null;
+  } | null>(null);
 
   const {
     register,
@@ -123,7 +121,9 @@ const CreateAdminModal = ({ open, onClose, onSuccess }: Props) => {
       toast.success("Admin created");
       onSuccess?.();
     } catch (err: any) {
-      toast.error(err?.data?.message || err?.message || "Failed to create admin");
+      toast.error(
+        err?.data?.message || err?.message || "Failed to create admin",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -149,8 +149,8 @@ const CreateAdminModal = ({ open, onClose, onSuccess }: Props) => {
           <div className="space-y-4">
             <div className="rounded-md border bg-emerald-50 dark:bg-emerald-950/30 p-3">
               <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">
-                Admin created. Share these credentials securely — they won&apos;t
-                be shown again.
+                Admin created. Share these credentials securely — they
+                won&apos;t be shown again.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -172,7 +172,9 @@ const CreateAdminModal = ({ open, onClose, onSuccess }: Props) => {
                 </div>
               </div>
               <div className="rounded-md border bg-card p-3">
-                <Label className="text-xs text-muted-foreground">Password</Label>
+                <Label className="text-xs text-muted-foreground">
+                  Password
+                </Label>
                 <div className="flex items-center justify-between mt-1">
                   <p className="font-mono text-sm font-semibold">
                     {generated.password}
@@ -231,35 +233,12 @@ const CreateAdminModal = ({ open, onClose, onSuccess }: Props) => {
                 </p>
               )}
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="adminPassword">Initial Password *</Label>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setValue("password", generatePassword(10), { shouldValidate: true })}
-                >
-                  Generate
-                </Button>
-              </div>
-              <Input
-                id="adminPassword"
-                type="text"
-                placeholder="Min 6 chars, must include upper, lower, and a number"
-                {...register("password")}
-              />
-              {errors.password && (
-                <p className="text-sm text-destructive">
-                  {errors.password.message}
-                </p>
-              )}
-            </div>
+
             <div className="space-y-2">
               <Label htmlFor="adminMobile">
-                Mobile{" "}
+                Mobile <span className="">*</span>{" "}
                 <span className="text-xs text-muted-foreground">
-                  (optional, lets admin sign in with phone + password)
+                  (used as the admin's sign-in handle)
                 </span>
               </Label>
               <Input
@@ -274,6 +253,36 @@ const CreateAdminModal = ({ open, onClose, onSuccess }: Props) => {
                 </p>
               )}
             </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="adminPassword">Initial Password *</Label>
+                {/* <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() =>
+                    setValue("password", generatePassword(10), {
+                      shouldValidate: true,
+                    })
+                  }
+                >
+                  Generate
+                </Button> */}
+              </div>
+              <Input
+                id="adminPassword"
+                type="text"
+                placeholder="Min 6 chars, must include upper, lower, and a number"
+                {...register("password")}
+              />
+              {errors.password && (
+                <p className="text-sm text-destructive">
+                  {errors.password.message}
+                </p>
+              )}
+            </div>
+
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={handleClose}>
                 Cancel

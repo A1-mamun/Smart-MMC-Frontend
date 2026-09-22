@@ -41,209 +41,176 @@ const esc = (s: unknown) =>
  *   - Tiny ornament stars at 9 and 3 o'clock.
  *   - Big "PAID" in the middle, with optional date caption underneath.
  *
- * The seal is tilted a few degrees (-8°) so it looks naturally stamped
- * rather than mechanically straight.
+ * Sized and rotated to match the React seal used in the on-screen receipt.
+ * Caller wraps the returned SVG in their own positioning container so the
+ * same string can be reused as a bottom-right seal OR as a watermark
+ * centered inside the description table.
  */
-// const renderSeal = (
-//   dateLabel?: string,
-//   topText?: string,
-//   bottomText?: string,
-// ): string => {
-//   const top = esc((topText || instituteInfo.name).toUpperCase());
-//   const bottom = esc((bottomText || instituteInfo.address || "").toUpperCase());
-//   const date = dateLabel ? esc(dateLabel.toUpperCase()) : "";
-//   return `
-//     <div class="flex justify-center">
-//       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="150" height="150" role="img" aria-label="PAID seal" style="transform:rotate(-20deg);transform-origin:center;display:block;">
-//       <defs>
-//         <path id="seal-top-arc" d="M 35 100 A 20 20 0 0 1 165 100" fill="none" />
-//         <path id="seal-bottom-arc" d="M 29 103 A 65 65 0 0 0 171 103" fill="none" />
-//       </defs>
-//       <circle cx="100" cy="100" r="92" fill="none" stroke="#059669" stroke-width="2.5" opacity="0.9" />
-//       <circle cx="100" cy="100" r="80" fill="none" stroke="#059669" stroke-width="4" />
-//       <circle cx="100" cy="100" r="60" fill="none" stroke="#059669" stroke-width="1" opacity="0.6" stroke-dasharray="2 3" />
-//       <text fill="#059669" font-family="Poppins, Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="2">
-//         <textPath href="#seal-top-arc" startOffset="50%" text-anchor="middle">${top}</textPath>
-//       </text>
-//       <text fill="#059669" font-family="Poppins, Arial, sans-serif" font-size="8" font-weight="600" letter-spacing="1.5">
-//         <textPath href="#seal-bottom-arc" startOffset="50%" text-anchor="middle">${bottom}</textPath>
-//       </text>
-//       <g fill="#059669">
-//         <polygon points="22,100 25,103 28,100 25,97" />
-//         <polygon points="172,100 175,103 178,100 175,97" />
-//       </g>
-//       <text x="100" y="106" text-anchor="middle" font-family="Poppins, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="3" fill="#059669">PAID</text>
-//       ${
-//         date
-//           ? `<text x="100" y="126" text-anchor="middle" font-family="Poppins, Arial, sans-serif" font-size="9" font-weight="600" letter-spacing="1" fill="#059669" opacity="0.85">${date}</text>`
-//           : ""
-//       }
-//     </svg>
-//   `;
-// };
-
 const renderSeal = (
   dateLabel?: string,
   topText?: string,
   bottomText?: string,
+  size: number = 280,
+  rotate: number = -18,
+  color: string = "#047857",
 ): string => {
   const top = esc((topText || instituteInfo.name).toUpperCase());
   const bottom = esc((bottomText || instituteInfo.address || "").toUpperCase());
   const date = dateLabel ? esc(dateLabel.toUpperCase()) : "";
 
-  // Unique IDs prevent SVG <textPath> collisions.
+  // Unique IDs prevent SVG <textPath> collisions when more than one seal
+  // appears on the same page (e.g. a print preview rendered alongside the
+  // modal preview).
   const uid = `seal-${Math.random().toString(36).slice(2, 10)}`;
   const topArcId = `${uid}-top`;
   const bottomArcId = `${uid}-bottom`;
 
   return `
-    <div style="display:flex;justify-content:flex-end;padding-right:8px;">
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 200 200"
-        width="150"
-        height="150"
-        role="img"
-        aria-label="PAID seal"
-        style="
-          display:block;
-          overflow:visible;
-          transform:rotate(-20deg);
-          transform-origin:center;
-        "
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 200 200"
+      width="${size}"
+      height="${size}"
+      role="img"
+      aria-label="PAID seal"
+      style="
+        display:block;
+        overflow:visible;
+        transform:rotate(${rotate}deg);
+        transform-origin:center;
+      "
+    >
+
+      <defs>
+
+        <!-- Top text arc: centered between inner and main rings -->
+          <path
+            id="${topArcId}"
+            d="M 34 100 A 66 66 0 0 1 166 100"
+            fill="none"
+          />
+
+          <!-- Bottom text arc: centered between inner and main rings -->
+          <path
+            id="${bottomArcId}"
+            d="M 166 100 A 66 66 0 0 1 34 100"
+            fill="none"
+          />
+
+      </defs>
+
+      <!-- Outer ring -->
+      <circle
+        cx="100"
+        cy="100"
+        r="92"
+        fill="none"
+        stroke="${color}"
+        stroke-width="2.5"
+        opacity="0.9"
+      />
+
+      <!-- Main ring -->
+      <circle
+        cx="100"
+        cy="100"
+        r="80"
+        fill="none"
+        stroke="${color}"
+        stroke-width="4"
+      />
+
+      <!-- Inner guide ring -->
+      <circle
+        cx="100"
+        cy="100"
+        r="60"
+        fill="none"
+        stroke="${color}"
+        stroke-width="1"
+        opacity="0.6"
+        stroke-dasharray="2 3"
+      />
+
+      <!-- Institute name -->
+      <text
+        fill="${color}"
+        font-family="Arial, sans-serif"
+        font-size="10"
+        font-weight="700"
+        letter-spacing="1.5"
       >
-
-        <defs>
-
-          <!-- Top text arc: centered between inner and main rings -->
-            <path
-              id="${topArcId}"
-              d="M 34 100 A 66 66 0 0 1 166 100"
-              fill="none"
-            />
-
-            <!-- Bottom text arc: centered between inner and main rings -->
-            <path
-              id="${bottomArcId}"
-              d="M 166 100 A 66 66 0 0 1 34 100"
-              fill="none"
-            />
-
-        </defs>
-
-        <!-- Outer ring -->
-        <circle
-          cx="100"
-          cy="100"
-          r="92"
-          fill="none"
-          stroke="#059669"
-          stroke-width="2.5"
-          opacity="0.9"
-        />
-
-        <!-- Main ring -->
-        <circle
-          cx="100"
-          cy="100"
-          r="80"
-          fill="none"
-          stroke="#059669"
-          stroke-width="4"
-        />
-
-        <!-- Inner guide ring -->
-        <circle
-          cx="100"
-          cy="100"
-          r="60"
-          fill="none"
-          stroke="#059669"
-          stroke-width="1"
-          opacity="0.6"
-          stroke-dasharray="2 3"
-        />
-
-        <!-- Institute name -->
-        <text
-          fill="#059669"
-          font-family="Arial, sans-serif"
-          font-size="10"
-          font-weight="700"
-          letter-spacing="1.5"
-        >
-          <textPath
-            href="#${topArcId}"
-            startOffset="50%"
-            text-anchor="middle"
-            lengthAdjust="spacingAndGlyphs"
-            textLength="125"
-          >${top}</textPath>
-        </text>
-
-        <!-- Institute address -->
-        <text
-          fill="#059669"
-          font-family="Arial, sans-serif"
-          font-size="7"
-          font-weight="600"
-          letter-spacing="1"
-        >
-          <textPath
-            href="#${bottomArcId}"
-            startOffset="50%"
-            text-anchor="middle"
-            lengthAdjust="spacingAndGlyphs"
-            textLength="120"
-          >${bottom}</textPath>
-        </text>
-
-        <!-- Left ornament -->
-        <polygon
-          points="26,100 30,104 34,100 30,96"
-          fill="#059669"
-        />
-
-        <!-- Right ornament -->
-        <polygon
-          points="166,100 170,104 174,100 170,96"
-          fill="#059669"
-        />
-
-        <!-- PAID -->
-        <text
-          x="100"
-          y="106"
+        <textPath
+          href="#${topArcId}"
+          startOffset="50%"
           text-anchor="middle"
-          font-family="Arial, sans-serif"
-          font-size="28"
-          font-weight="900"
-          letter-spacing="3"
-          fill="#059669"
-        >
-          PAID
-        </text>
+          lengthAdjust="spacingAndGlyphs"
+          textLength="125"
+        >${top}</textPath>
+      </text>
 
-        ${
-          date
-            ? `
-              <text
-                x="100"
-                y="126"
-                text-anchor="middle"
-                font-family="Arial, sans-serif"
-                font-size="7"
-                font-weight="600"
-                letter-spacing="1"
-                fill="#059669"
-                opacity="0.85"
-              >${date}</text>
-            `
-            : ""
-        }
+      <!-- Institute address -->
+      <text
+        fill="${color}"
+        font-family="Arial, sans-serif"
+        font-size="7"
+        font-weight="600"
+        letter-spacing="1"
+      >
+        <textPath
+          href="#${bottomArcId}"
+          startOffset="50%"
+          text-anchor="middle"
+          lengthAdjust="spacingAndGlyphs"
+          textLength="120"
+        >${bottom}</textPath>
+      </text>
 
-      </svg>
-    </div>
+      <!-- Left ornament -->
+      <polygon
+        points="26,100 30,104 34,100 30,96"
+        fill="${color}"
+      />
+
+      <!-- Right ornament -->
+      <polygon
+        points="166,100 170,104 174,100 170,96"
+        fill="${color}"
+      />
+
+      <!-- PAID -->
+      <text
+        x="100"
+        y="106"
+        text-anchor="middle"
+        font-family="Arial, sans-serif"
+        font-size="28"
+        font-weight="900"
+        letter-spacing="3"
+        fill="${color}"
+      >
+        PAID
+      </text>
+
+      ${
+        date
+          ? `
+            <text
+              x="100"
+              y="126"
+              text-anchor="middle"
+              font-family="Arial, sans-serif"
+              font-size="7"
+              font-weight="600"
+              letter-spacing="1"
+              fill="${color}"
+              opacity="0.85"
+            >${date}</text>
+          `
+          : ""
+      }
+
+    </svg>
   `;
 };
 
@@ -306,43 +273,77 @@ export const renderReceiptHTML = (props: TemplateProps): string => {
 
   const courseLabel = courseName ? esc(courseName.replace(/_/g, " ")) : "—";
 
+  /*
+   * Watermark PAID seal — rendered as the center of the breakdown table so
+   * its top arc sits behind the "Description / Amount" header and its
+   * bottom arc sits behind the "Balance Due" footer row. The table cell
+   * uses `position: relative` + `overflow: visible` so the seal isn't
+   * clipped, and the wrapper around the SVG drops it to 50% opacity so
+   * the underlying numbers stay readable.
+   *
+   * Header and footer rows use a semi-transparent neutral background
+   * (`rgba(245, 245, 245, 0.7)`) so the seal's emerald ring and PAID
+   * text bleed through them. Body rows keep the opaque white to keep
+   * the numbers sharp.
+   *
+   * The same pattern is used for the single-row fallback, with a
+   * smaller seal.
+   */
+  const sealHtml = balance === 0 ? renderSeal(dateLabel) : "";
+
   const breakdownTable =
     fee !== undefined && fee !== null
       ? `
-        <table style="width:100%;border-collapse:collapse;font-size:13px;border:1px solid #4b5563;">
-          <thead>
-            <tr style="background:#f5f5f5;">
-              <th style="text-align:left;padding:8px 12px;font-weight:600;border-bottom:1px solid #4b5563;">Description</th>
-              <th style="text-align:right;padding:8px 12px;font-weight:600;border-bottom:1px solid #4b5563;">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td style="padding:6px 12px;">Total Course Fee</td>
-              <td style="padding:6px 12px;text-align:right;">${money(totalFee)}</td>
-            </tr>
-            <tr style="border-top:1px solid #d4d4d4;">
-              <td style="padding:6px 12px;">Previously Paid</td>
-              <td style="padding:6px 12px;text-align:right;">${money(previous)}</td>
-            </tr>
-            <tr style="border-top:1px solid #d4d4d4;">
-              <td style="padding:6px 12px;">Paid Today</td>
-              <td style="padding:6px 12px;text-align:right;">${money(amount)}</td>
-            </tr>
-            <tr style="border-top:1px solid #d4d4d4;font-weight:600;">
-              <td style="padding:6px 12px;">Total Paid</td>
-              <td style="padding:6px 12px;text-align:right;">${money(totalPaidRunning)}</td>
-            </tr>
-            <tr style="border-top:1px solid #4b5563;background:#f5f5f5;font-weight:600;">
-              <td style="padding:6px 12px;">Balance Due</td>
-              <td style="padding:6px 12px;text-align:right;">${money(balance)}</td>
-            </tr>
-          </tbody>
-        </table>`
+        <div style="position:relative;overflow:visible;border:1px solid #4b5563;font-size:13px;">
+          ${
+            balance === 0
+              ? `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;overflow:visible;z-index:0;">
+                   <div style="opacity:0.5;">${sealHtml}</div>
+                 </div>`
+              : ""
+          }
+          <table style="position:relative;z-index:1;width:100%;border-collapse:collapse;">
+            <thead>
+              <tr style="background:rgba(245,245,245,0.7);">
+                <th style="text-align:left;padding:8px 12px;font-weight:600;border-bottom:1px solid #4b5563;">Description</th>
+                <th style="text-align:right;padding:8px 12px;font-weight:600;border-bottom:1px solid #4b5563;">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="padding:6px 12px;">Total Course Fee</td>
+                <td style="padding:6px 12px;text-align:right;">${money(totalFee)}</td>
+              </tr>
+              <tr style="border-top:1px solid #d4d4d4;">
+                <td style="padding:6px 12px;">Previously Paid</td>
+                <td style="padding:6px 12px;text-align:right;">${money(previous)}</td>
+              </tr>
+              <tr style="border-top:1px solid #d4d4d4;">
+                <td style="padding:6px 12px;">Paid Today</td>
+                <td style="padding:6px 12px;text-align:right;">${money(amount)}</td>
+              </tr>
+              <tr style="border-top:1px solid #d4d4d4;font-weight:600;">
+                <td style="padding:6px 12px;">Total Paid</td>
+                <td style="padding:6px 12px;text-align:right;">${money(totalPaidRunning)}</td>
+              </tr>
+              <tr style="border-top:1px solid #4b5563;background:rgba(245,245,245,0.7);font-weight:600;">
+                <td style="padding:6px 12px;">Balance Due</td>
+                <td style="padding:6px 12px;text-align:right;">${money(balance)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>`
       : `
-        <div style="border:1px solid #4b5563;padding:12px;display:flex;justify-content:space-between;font-size:13px;">
-          <span style="font-weight:600;">Amount Paid</span>
-          <span style="font-weight:600;">${money(amount)}</span>
+        <div style="position:relative;overflow:visible;border:1px solid #4b5563;padding:12px;display:flex;justify-content:space-between;font-size:13px;">
+          ${
+            balance === 0
+              ? `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;overflow:visible;z-index:0;">
+                   <div style="opacity:0.5;">${sealHtml.replace(/width="280"/, 'width="180"').replace(/height="280"/, 'height="180"')}</div>
+                 </div>`
+              : ""
+          }
+          <span style="position:relative;z-index:1;font-weight:600;">Amount Paid</span>
+          <span style="position:relative;z-index:1;font-weight:600;font-size:16px;">${money(amount)}</span>
         </div>`;
 
   return `
@@ -479,19 +480,6 @@ export const renderReceiptHTML = (props: TemplateProps): string => {
       </div>
 
       <p style="margin-top:40px;text-align:center;font-size:12px;color:#525252;">Thank you for your payment.</p>
-
-      ${
-        /*
-         * Circular PAID seal — placed in the free space at the bottom-right
-         * of the receipt. Only shown when the enrollment is fully settled
-         * (balance 0, which also covers manual overrides to PAID).
-         */
-        balance === 0
-          ? `<div style="margin-top:24px;display:flex;justify-content:flex-end;padding-right:8px;">
-               ${renderSeal(dateLabel)}
-             </div>`
-          : ""
-      }
     </div>
   `;
 };

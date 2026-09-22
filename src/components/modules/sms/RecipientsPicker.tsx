@@ -19,13 +19,24 @@ import {
   useGetAllCoursesQuery,
   useGetCourseByIdQuery,
 } from "@/redux/features/course/course";
-import type { TCourseBatchDay } from "@/types/student";
+import type { TCourseBatchDay, TStudent } from "@/types/student";
 import type { TSmsRecipient } from "@/types/sms";
 import { formatBatchLabel, formatBatchDayLabel } from "@/constants/labels";
 import QuickScenarioFilters, {
   EMPTY_SCENARIO,
   type QuickScenarioState,
 } from "./QuickScenarioFilters";
+
+/**
+ * Decide which mobile to send to when the admin is using the
+ * absent-warning picker. Mirrors the backend's father → mother → self
+ * fallback chain. When `absentOnDate` is empty (regular flow), we keep
+ * the existing behaviour of using the student's own mobile.
+ */
+const pickWarningMobile = (s: TStudent, absentOnDate: string): string => {
+  if (!absentOnDate) return s.mobile;
+  return s.fatherMobile || s.motherMobile || s.mobile;
+};
 
 type Props = {
   /** Already-selected recipients that the picker should reflect on mount. */
@@ -98,6 +109,7 @@ const RecipientsPicker = ({ initial = [], onChange }: Props) => {
         : {}),
       ...(scenario.hasDue ? { hasDue: true } : {}),
       ...(scenario.activeCoursesOnly ? { activeCoursesOnly: true } : {}),
+      ...(scenario.absentOnDate ? { absentOnDate: scenario.absentOnDate } : {}),
       limit: 500,
     },
     { refetchOnMountOrArgChange: true },
@@ -126,7 +138,7 @@ const RecipientsPicker = ({ initial = [], onChange }: Props) => {
             .map((s) => ({
               studentId: s.id,
               name: s.user.name,
-              mobile: s.mobile,
+              mobile: pickWarningMobile(s, scenario.absentOnDate),
             })),
         ];
     onChange(next);
@@ -274,7 +286,7 @@ const RecipientsPicker = ({ initial = [], onChange }: Props) => {
                         toggleRecipient({
                           studentId: s.id,
                           name: s.user.name,
-                          mobile: s.mobile,
+                          mobile: pickWarningMobile(s, scenario.absentOnDate),
                         })
                       }
                       className="mt-1"

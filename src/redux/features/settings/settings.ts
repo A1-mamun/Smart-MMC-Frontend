@@ -3,7 +3,6 @@ import { TApiResponse } from "@/types/common";
 import {
   TSettingsConfig,
   TSettingsConfigPatch,
-  TRunAbsentWarningResult,
   TRunExamAbsenceWarningResult,
 } from "@/types/settings";
 
@@ -11,8 +10,13 @@ import {
  * Settings slice — three endpoints, all under /api/v1/settings:
  *   GET  /config                       → current configs (cached 60s)
  *   PUT  /config                       → super-admin-only update
- *   POST /absent-warning/run           → any admin can fire an ad-hoc run
  *   POST /exam-absence/run             → any admin can fire exam-absence run
+ *
+ * The absent-warning feature is always-on and no longer has any
+ * user-tunable knobs, so there's no longer a "Run absent-warning job
+ * now" button on the Settings page. (The backend endpoint is still
+ * available at /api/v1/settings/absent-warning/run for an admin escape
+ * hatch via curl / Postman.)
  *
  * The "Settings" tag is the only invalidation source: when a config is
  * patched, every dependent query (the settings page itself, the cron
@@ -31,18 +35,6 @@ const settingsApi = baseApi.injectEndpoints({
       query: (body) => ({ url: "/settings/config", method: "PUT", body }),
       invalidatesTags: ["Settings"],
     }),
-    runAbsentWarningNow: build.mutation<
-      TApiResponse<TRunAbsentWarningResult>,
-      void
-    >({
-      query: () => ({ url: "/settings/absent-warning/run", method: "POST" }),
-      // The ad-hoc run mutates state downstream (SmsLog + weekly
-      // dedupe rows) but does NOT change the saved config. The
-      // Activity and Sms tags are invalidated by SmsService itself
-      // when sendSmsToDB writes its rows — we only need to refresh
-      // Settings to keep the UI's idea of "last result" consistent.
-      invalidatesTags: ["Settings"],
-    }),
     runExamAbsenceWarningNow: build.mutation<
       TApiResponse<TRunExamAbsenceWarningResult>,
       void
@@ -56,6 +48,5 @@ const settingsApi = baseApi.injectEndpoints({
 export const {
   useGetSettingsQuery,
   useUpdateSettingsMutation,
-  useRunAbsentWarningNowMutation,
   useRunExamAbsenceWarningNowMutation,
 } = settingsApi;

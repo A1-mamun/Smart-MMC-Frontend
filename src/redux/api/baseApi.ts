@@ -34,7 +34,28 @@ const baseQueryWithRefreshToken: BaseQueryFn<
     toast.error((result?.error?.data as { message?: string })?.message);
   }
 
-  if (result?.error?.status === 401) {
+  // 401 handling — refresh-token dance. We deliberately ONLY attempt
+  // a refresh for endpoints that use the accessToken bearer scheme.
+  // `sign-in` returns 401 on wrong credentials, and `refresh-token`
+  // returns 401 when the cookie is missing/invalid; running the
+  // refresh path for either causes the side-effect cascade logged by
+  // the user: the failing refresh dispatches `logOut()` and calls
+  // `logoutUser()`, which deletes the refreshToken cookie while the
+  // page is mid-navigation, producing a flurry of /signin redirects
+  // and Next.js dev-mode "Cannot write to a CLOSED writable stream"
+  // HMR errors as Fast Refresh tries to push updates to a torn-down
+  // page.
+  //
+  // Endpoints that own their own 401 contract (auth + public routes)
+  // short-circuit here.
+  const url = typeof args === "string" ? args : args.url;
+  const isAuthEndpoint =
+    typeof url === "string" &&
+    (url.includes("/auth/sign-in") ||
+      url.includes("/auth/refresh-token") ||
+      url.includes("/auth/forgot-password") ||
+      url.includes("/auth/reset-password"));
+  if (result?.error?.status === 401 && !isAuthEndpoint) {
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_BASE_API}/auth/refresh-token`,
@@ -63,7 +84,7 @@ export const baseApi = createApi({
   baseQuery: baseQueryWithRefreshToken,
   // Tags drive automatic cache invalidation. When a mutation invalidates one of
   // these tags, every query that provided the same tag will refetch.
-  tagTypes: ["Student", "Payment", "Course", "Attendance", "Activity", "Dashboard", "Sms", "Exam", "ExamResult", "Settings"],
+  tagTypes: ["Student", "Payment", "Course", "CourseSeats", "Attendance", "Activity", "Dashboard", "Sms", "Exam", "ExamResult", "Settings"],
   // Refetch lists whenever the window regains focus (e.g. user navigates back
   // to the page from elsewhere) so the data is always fresh.
   refetchOnFocus: true,

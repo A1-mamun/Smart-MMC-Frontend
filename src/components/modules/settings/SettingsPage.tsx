@@ -21,69 +21,30 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   useGetSettingsQuery,
-  useRunAbsentWarningNowMutation,
   useRunExamAbsenceWarningNowMutation,
   useUpdateSettingsMutation,
 } from "@/redux/features/settings/settings";
 import {
   DEFAULT_SETTINGS_CONFIG,
-  TAbsentWarningConfig,
-  TAbsentWarningMode,
   TExamAbsenceConfig,
   TSettingsConfig,
   TSettingsConfigPatch,
-  TRunAbsentWarningResult,
   TRunExamAbsenceWarningResult,
-  WEEKDAYS,
 } from "@/types/settings";
 import { useCurrentUser } from "@/redux/features/auth/authSlice";
 import { useAppSelector } from "@/redux/hooks";
 
 /**
- * Three-way radio rendered as a row of selectable cards. We avoid the
- * shadcn `RadioGroup` primitive (not installed) and instead use
- * native `<input type="radio">` with custom styling — the visual
- * affordance is the same.
+ * Deep diff: produce a flat TSettingsConfigPatch from a (draft, server)
+ * pair. Top-level keys present in `draft` AND missing from `server`
+ * (or different) are included; nested objects are walked.
+ *
+ * Only the exam-absence sub-config is user-tunable now — the absent-
+ * warning feature is always-on, today-only, father-only and uses a
+ * hardcoded message, so the Settings UI doesn't expose any of its
+ * fields.
  */
-const MODE_OPTIONS: {
-  value: TAbsentWarningMode;
-  label: string;
-  description: string;
-}[] = [
-  {
-    value: "OFF",
-    label: "Off",
-    description: "Feature disabled. No scheduler activity, picker returns empty.",
-  },
-  {
-    value: "MANUAL",
-    label: "Manual only",
-    description:
-      "Admins send warnings from the SMS panel using the 'Absent on date' filter.",
-  },
-  {
-    value: "AUTO",
-    label: "Automatic",
-    description:
-      "Scheduler fires weekly at the configured day + time below.",
-  },
-];
-
-// Deep diff: produce a flat TSettingsConfigPatch from a (draft, server)
-// pair. Top-level keys present in `draft` AND missing from `server`
-// (or different) are included; nested objects are walked.
-//
-// We deliberately only diff the SHALLOW sub-configs here — both
-// `absentWarning` and `examAbsence` are flat objects, so a single
-// recursive descent covers them.
 const diffSettings = (
   draft: TSettingsConfig,
   server: TSettingsConfig,
@@ -97,30 +58,6 @@ const diffSettings = (
   ) => {
     if (a !== b) patch[key as string] = a;
   };
-
-  // absent-warning
-  pushIfChanged("mode", draft.absentWarning.mode, server.absentWarning.mode);
-  pushIfChanged(
-    "dayOfWeek",
-    draft.absentWarning.dayOfWeek,
-    server.absentWarning.dayOfWeek,
-  );
-  pushIfChanged("hour", draft.absentWarning.hour, server.absentWarning.hour);
-  pushIfChanged(
-    "minute",
-    draft.absentWarning.minute,
-    server.absentWarning.minute,
-  );
-  pushIfChanged(
-    "message",
-    draft.absentWarning.message,
-    server.absentWarning.message,
-  );
-  pushIfChanged(
-    "lookbackDays",
-    draft.absentWarning.lookbackDays,
-    server.absentWarning.lookbackDays,
-  );
 
   // exam-absence
   pushIfChanged(
@@ -158,8 +95,6 @@ const SettingsPage = () => {
 
   const { data, isLoading } = useGetSettingsQuery();
   const [updateSettings, { isLoading: isSaving }] = useUpdateSettingsMutation();
-  const [runAbsentWarningNow, { isLoading: isRunningAbsent }] =
-    useRunAbsentWarningNowMutation();
   const [runExamAbsenceNow, { isLoading: isRunningExam }] =
     useRunExamAbsenceWarningNowMutation();
 
@@ -178,11 +113,8 @@ const SettingsPage = () => {
     [draft, serverConfig],
   );
 
-  // Convenience setters scoped to each sub-config. Keeping them as
-  // functions (instead of inlining ...draft everywhere) trims the JSX
-  // and stops sub-config updates from forgetting to spread the sibling.
-  const setAbsent = (patch: Partial<TAbsentWarningConfig>) =>
-    setDraft((prev) => ({ ...prev, absentWarning: { ...prev.absentWarning, ...patch } }));
+  // Convenience setter scoped to the only remaining sub-config. The
+  // absent-warning sub-config is no longer user-editable from this page.
   const setExam = (patch: Partial<TExamAbsenceConfig>) =>
     setDraft((prev) => ({ ...prev, examAbsence: { ...prev.examAbsence, ...patch } }));
 
@@ -197,22 +129,6 @@ const SettingsPage = () => {
       toast.success("Settings saved.");
     } catch {
       toast.error("Failed to save settings.");
-    }
-  };
-
-  const handleRunAbsent = async () => {
-    try {
-      const result = (await runAbsentWarningNow().unwrap())
-        .data as TRunAbsentWarningResult | null;
-      if (!result) {
-        toast.error("Run failed");
-        return;
-      }
-      toast.success(
-        `Absent-warning finished — sent ${result.sent}, skipped ${result.skipped}, matched ${result.total}.`,
-      );
-    } catch {
-      toast.error("Run failed");
     }
   };
 
@@ -232,7 +148,6 @@ const SettingsPage = () => {
     }
   };
 
-  const autoDisabled = draft.absentWarning.mode !== "AUTO";
   const examEnabled = draft.examAbsence.enabled;
 
   return (
@@ -243,182 +158,22 @@ const SettingsPage = () => {
           Settings
         </h2>
         <p className="text-sm text-muted-foreground">
-          Configure system-wide SMS behaviour for attendance and exam-absence
-          alerts.
+          Configure system-wide SMS behaviour for exam-absence alerts. The
+          absent-on-class warning is automatic — it runs once per day and
+          sends an SMS to the student&apos;s father&apos;s mobile for any
+          student who had class today but didn&apos;t attend.
         </p>
       </div>
 
       {!isSuperAdmin && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           You can view the current settings but only a super admin can save
-          changes. The "Run now" buttons below are available to all admins.
+          changes. The &quot;Run now&quot; button below is available to all
+          admins.
         </div>
       )}
 
-      {/* ============ Card A — absent-warning (existing) ============ */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Absent-warning dispatch mode</CardTitle>
-          <CardDescription>
-            Choose how the absent-warning SMS is delivered.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {MODE_OPTIONS.map((opt) => {
-            const selected = draft.absentWarning.mode === opt.value;
-            return (
-              <label
-                key={opt.value}
-                className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 transition ${
-                  selected
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:bg-muted/40"
-                } ${!isSuperAdmin ? "cursor-not-allowed opacity-80" : ""}`}
-              >
-                <input
-                  type="radio"
-                  name="mode"
-                  value={opt.value}
-                  checked={selected}
-                  disabled={!isSuperAdmin}
-                  onChange={() => setAbsent({ mode: opt.value })}
-                  className="mt-1 h-4 w-4 accent-primary"
-                />
-                <div>
-                  <div className="font-medium">{opt.label}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {opt.description}
-                  </div>
-                </div>
-              </label>
-            );
-          })}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Schedule</CardTitle>
-          <CardDescription>
-            When the automatic mode is on, the absent-warning job runs at this
-            day & time every week.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <fieldset
-            disabled={autoDisabled || !isSuperAdmin}
-            className="grid gap-4 md:grid-cols-3"
-          >
-            <div className="space-y-2">
-              <Label htmlFor="dayOfWeek">Day of week</Label>
-              <Select
-                value={draft.absentWarning.dayOfWeek}
-                onValueChange={(v) =>
-                  setAbsent({ dayOfWeek: v as TAbsentWarningConfig["dayOfWeek"] })
-                }
-              >
-                <SelectTrigger id="dayOfWeek">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {WEEKDAYS.map((d) => (
-                    <SelectItem key={d} value={d}>
-                      {d}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="hour">Hour (0-23)</Label>
-              <Input
-                id="hour"
-                type="number"
-                min={0}
-                max={23}
-                value={draft.absentWarning.hour}
-                onChange={(e) =>
-                  setAbsent({ hour: Number(e.target.value) || 0 })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="minute">Minute (0-59)</Label>
-              <Input
-                id="minute"
-                type="number"
-                min={0}
-                max={59}
-                value={draft.absentWarning.minute}
-                onChange={(e) =>
-                  setAbsent({ minute: Number(e.target.value) || 0 })
-                }
-              />
-            </div>
-            <div className="space-y-2 md:col-span-3">
-              <Label htmlFor="lookbackDays">Look-back days (1-3)</Label>
-              <Input
-                id="lookbackDays"
-                type="number"
-                min={1}
-                max={3}
-                value={draft.absentWarning.lookbackDays}
-                onChange={(e) =>
-                  setAbsent({
-                    lookbackDays: Math.min(
-                      3,
-                      Math.max(1, Number(e.target.value) || 1),
-                    ),
-                  })
-                }
-              />
-              <p className="text-xs text-muted-foreground">
-                How many past calendar days to consider each tick. Non-class
-                days are skipped automatically.
-              </p>
-            </div>
-          </fieldset>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Warning message template</CardTitle>
-          <CardDescription>
-            Placeholders supported: <code>{`{studentName}`}</code>,{" "}
-            <code>{`{classDate}`}</code>. Maximum 1600 characters.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            rows={5}
-            maxLength={1600}
-            disabled={!isSuperAdmin}
-            value={draft.absentWarning.message}
-            onChange={(e) => setAbsent({ message: e.target.value })}
-          />
-          <p className="mt-1 text-xs text-muted-foreground">
-            {draft.absentWarning.message.length} / 1600 characters
-          </p>
-        </CardContent>
-      </Card>
-
-      <div className="flex flex-wrap gap-3">
-        <Button
-          onClick={handleRunAbsent}
-          variant="outline"
-          disabled={isRunningAbsent}
-        >
-          {isRunningAbsent ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Play className="mr-2 h-4 w-4" />
-          )}
-          Run absent-warning job now
-        </Button>
-      </div>
-
-      {/* ============ Card B — exam-absence (new) ============ */}
+      {/* ============ Card — exam-absence ============ */}
       <Card>
         <CardHeader>
           <CardTitle>Exam-absence SMS to father</CardTitle>

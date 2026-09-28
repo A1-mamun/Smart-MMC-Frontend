@@ -33,7 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useForm, Controller, useFieldArray, useWatch } from "react-hook-form";
+import { useForm, Controller, useFieldArray, useWatch, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { courseNames } from "@/constants/courseNames";
@@ -81,6 +81,19 @@ const schema = z.object({
   fee: z.number().min(0, "Fee must be positive"),
   description: z.string().optional(),
   hscBatch: z.enum(["BATCH_25", "BATCH_26", "BATCH_27", "BATCH_28"]),
+  // Per-course seat cap. The empty-string literal is how the input
+  // reports a cleared state — submit-time normalisation maps it to
+  // null (uncapped) before sending to the backend. min(1) blocks the
+  // "0 seats = nobody allowed" footgun; use the active toggle for
+  // that intent. We accept either form at the schema layer and leave
+  // the form's value as a wide string|number so the underlying
+  // <Input type="number"> can clear itself without TS friction.
+  totalSeats: z
+    .union([
+      z.coerce.number().int().min(1, "Cap must be at least 1").max(10000),
+      z.literal(""),
+    ])
+    .optional(),
   batchDays: z
     .array(batchDayFormSchema)
     .min(1, "Add at least one batch day")
@@ -188,12 +201,13 @@ const CoursesPage = () => {
     setValue,
     formState: { errors },
   } = useForm<FormData, any, FormData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as Resolver<FormData, any, FormData>,
     defaultValues: {
       name: "HSC_1ST_YEAR",
       fee: 0,
       description: "",
       hscBatch: "BATCH_27",
+      totalSeats: "" as const,
       batchDays: [{ name: "", days: [], times: [] }],
     },
   });
@@ -209,6 +223,16 @@ const CoursesPage = () => {
     try {
       const cleaned = {
         ...formData,
+        // Normalise totalSeats: empty string -> null (uncapped). Other
+        // values pass through verbatim. Undefined stays undefined so
+        // update payloads can omit the field when the admin didn't
+        // touch it.
+        totalSeats:
+          formData.totalSeats === ""
+            ? null
+            : formData.totalSeats === undefined
+            ? undefined
+            : Number(formData.totalSeats),
         batchDays: formData.batchDays.map((d) => ({
           // Preserve the existing batchDay id during an update so the backend
           // can match and update that row in place (preserving
@@ -242,6 +266,10 @@ const CoursesPage = () => {
       fee: Number(course.fee),
       description: course.description || "",
       hscBatch: course.hscBatch,
+      // Carry the existing totalSeats through to the form, or empty
+      // string when the course is currently uncapped — submit-time
+      // normalisation maps both to the right backend shape.
+      totalSeats: course.totalSeats == null ? "" : course.totalSeats,
       batchDays:
         course.batchDays && course.batchDays.length > 0
           ? course.batchDays.map((d) => ({
@@ -306,6 +334,10 @@ const CoursesPage = () => {
       fee: 0,
       description: "",
       hscBatch: "BATCH_27",
+      // New courses default to uncapped in the form; submit-time
+      // normalisation maps the empty string to `null`. Admins type
+      // a number to set a cap explicitly.
+      totalSeats: "" as const,
       batchDays: [{ name: "", days: [], times: [] }],
     });
     setOpen(true);
@@ -379,6 +411,34 @@ const CoursesPage = () => {
                     </p>
                   )}
                 </div>
+              </div>
+
+              {/* Per-slot seat cap. Empty = uncapped. Each
+                  (batchDay, batchTime) slot gets its own quota of
+                  `totalSeats`; a course with 2 batchDays × 2 times[] =
+                  4 slots × totalSeats = effectively 4×N seats
+                  across the course. The admit picker shows per-slot
+                  counts via GET /course/:id/seats. */}
+              <div className="space-y-2">
+                <Label htmlFor="totalSeats">
+                  Seats per slot
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    Leave empty for no cap (uncapped). Default 120 on new courses.
+                  </span>
+                </Label>
+                <Input
+                  id="totalSeats"
+                  type="number"
+                  min={1}
+                  max={10000}
+                  placeholder="e.g. 120"
+                  {...register("totalSeats")}
+                />
+                {errors.totalSeats && (
+                  <p className="text-sm text-destructive">
+                    {(errors.totalSeats as { message?: string }).message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -585,6 +645,22 @@ const CoursesPage = () => {
                         {formatBatchLabel(course.hscBatch)}
                       </span>
                     </p>
+                    {/* Per-slot seat-cap read-out. Course.totalSeats
+                        applies to each (batchDay, batchTime) slot
+                        independently — the picker shows per-slot
+                        fullness, so this card only needs to surface
+                        the cap. There is no "course is full" state
+                        anymore; that's a per-slot concern. */}
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-muted-foreground">Per slot:</span>
+                      {course.totalSeats == null ? (
+                        <Badge variant="outline" className="text-xs">
+                          Uncapped
+                        </Badge>
+                      ) : (
+                        <span className="font-medium">{course.totalSeats}</span>
+                      )}
+                    </div>
                     {course.batchDays && course.batchDays.length > 0 && (
                       <div className="space-y-2">
                         <div className="text-xs font-medium text-muted-foreground">

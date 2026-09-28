@@ -18,7 +18,14 @@ const studentApi = baseApi.injectEndpoints({
         method: "POST",
         body: data,
       }),
-      invalidatesTags: ["Student", "Dashboard", "Activity"],
+      invalidatesTags: (_r, _e, arg) => [
+        "Student",
+        "Dashboard",
+        "Activity",
+        // Refresh the per-slot seat counts so the picker reflects the
+        // newly-occupied slot immediately.
+        { type: "CourseSeats", id: arg.courseId },
+      ],
     }),
     // Dedicated endpoint for the "old student → new course" branch in
     // the admit form. Same response shape as `admitStudent` so the
@@ -33,7 +40,12 @@ const studentApi = baseApi.injectEndpoints({
         method: "POST",
         body: data,
       }),
-      invalidatesTags: ["Student", "Dashboard", "Activity"],
+      invalidatesTags: (_r, _e, arg) => [
+        "Student",
+        "Dashboard",
+        "Activity",
+        { type: "CourseSeats", id: arg.courseId },
+      ],
     }),
     getAllStudents: build.query<TApiResponse<TStudent[]>, any>({
       query: (params) => {

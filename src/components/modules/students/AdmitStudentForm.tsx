@@ -1535,7 +1535,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useGetAllCoursesQuery } from "@/redux/features/course/course";
+import {
+  useGetAllCoursesQuery,
+  useGetCourseSeatsQuery,
+} from "@/redux/features/course/course";
 import {
   useAdmitStudentMutation,
   useEnrollExistingStudentMutation,
@@ -1822,6 +1825,41 @@ const AdmitStudentForm = () => {
       null,
     [selectedCourse, selectedBatchDayId],
   );
+
+  // Per-slot seat counts for the selected course. Skipped when no
+  // course is chosen (RTK Query treats the skip arg as undefined).
+  // The hook's cache is invalidated by admit / enroll-existing
+  // mutations, so the picker refreshes after a successful submit.
+  const { data: seatsData } = useGetCourseSeatsQuery(
+    selectedCourseId || "",
+    { skip: !selectedCourseId },
+  );
+  const seats = seatsData?.data;
+
+  // Lookup map keyed by `${batchDayId}|${batchTime}` for O(1) per-
+  // slot counts. Slots that have never been used simply don't appear,
+  // so Map.get returns undefined → we coerce to 0.
+  const slotsByKey = useMemo(() => {
+    const m = new Map<string, number>();
+    if (!seats) return m;
+    for (const s of seats.slots) {
+      m.set(`${s.batchDayId}|${s.batchTime}`, s.enrolled);
+    }
+    return m;
+  }, [seats]);
+
+  /**
+   * Returns the count of FULL slots in a batchDay. Used to decide
+   * whether the day-level picker should render "(All slots full)".
+   * Returns 0 when seats haven't loaded yet.
+   */
+  const fullyBookedDayCount = (batchDayId: string, times: string[]) => {
+    if (!seats || seats.totalSeats == null) return 0;
+    return times.filter((t) => {
+      const enrolled = slotsByKey.get(`${batchDayId}|${t}`) ?? 0;
+      return enrolled >= seats.totalSeats!;
+    }).length;
+  };
 
   const handleCourseChange = (value: string) => {
     setValue("courseId", value, { shouldValidate: true });
@@ -2553,8 +2591,14 @@ const AdmitStudentForm = () => {
                         </SelectItem>
                       )}
                       {courses.map((c) => (
+                        // Per-slot seat cap is enforced below in the
+                        // BatchTime picker, so a course is never
+                        // "fully booked" at the course level — only
+                        // individual (batchDay, batchTime) slots are.
                         <SelectItem key={c.id} value={c.id}>
-                          {formatCourseLabel(c.name)} — ৳{Number(c.fee)}
+                          {formatCourseLabel(c.name)} — ৳
+                          {Number(c.fee).toLocaleString()}
+                          {c.totalSeats != null ? ` (cap ${c.totalSeats}/slot)` : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -2586,12 +2630,27 @@ const AdmitStudentForm = () => {
                               <SelectValue placeholder="Select a batch day" />
                             </SelectTrigger>
                             <SelectContent>
-                              {selectedCourse.batchDays!.map((d) => (
-                                <SelectItem key={d.id} value={d.id}>
-                                  {d.name} — {d.days.join(", ")} @{" "}
-                                  {d.times.join(", ")}
-                                </SelectItem>
-                              ))}
+                              {selectedCourse.batchDays!.map((d) => {
+                                const fullSlots = fullyBookedDayCount(
+                                  d.id,
+                                  d.times,
+                                );
+                                const allFull =
+                                  seats?.totalSeats != null &&
+                                  d.times.length > 0 &&
+                                  fullSlots === d.times.length;
+                                return (
+                                  <SelectItem
+                                    key={d.id}
+                                    value={d.id}
+                                    disabled={allFull}
+                                  >
+                                    {d.name} — {d.days.join(", ")} @{" "}
+                                    {d.times.join(", ")}
+                                    {allFull ? " (All slots full)" : ""}
+                                  </SelectItem>
+                                );
+                              })}
                             </SelectContent>
                           </Select>
                         )}
@@ -2630,11 +2689,31 @@ const AdmitStudentForm = () => {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {selectedBatchDay.times.map((t) => (
-                                <SelectItem key={t} value={t}>
-                                  {t}
-                                </SelectItem>
-                              ))}
+                              {selectedBatchDay.times.map((t) => {
+                                const enrolled =
+                                  slotsByKey.get(
+                                    `${selectedBatchDay.id}|${t}`,
+                                  ) ?? 0;
+                                const isFull =
+                                  seats?.totalSeats != null &&
+                                  enrolled >= seats.totalSeats;
+                                const suffix =
+                                  seats?.totalSeats == null
+                                    ? ""
+                                    : isFull
+                                    ? " (Full)"
+                                    : ` (${enrolled}/${seats.totalSeats})`;
+                                return (
+                                  <SelectItem
+                                    key={t}
+                                    value={t}
+                                    disabled={isFull}
+                                  >
+                                    {t}
+                                    {suffix}
+                                  </SelectItem>
+                                );
+                              })}
                             </SelectContent>
                           </Select>
                         )}
@@ -2644,6 +2723,30 @@ const AdmitStudentForm = () => {
                           {errors.batchTime.message}
                         </p>
                       )}
+                      {/* Banner for the rare case where the form
+                          still holds a now-full slot (e.g. cap dropped
+                          between page load and submit). The select
+                          itself is dimmed + disabled for that slot. */}
+                      {selectedBatchDay &&
+                        seats?.totalSeats != null && (
+                          (() => {
+                            const enrolled =
+                              slotsByKey.get(
+                                `${selectedBatchDay.id}|${watch("batchTime")}`,
+                              ) ?? 0;
+                            if (enrolled < seats.totalSeats) return null;
+                            const dayName = selectedBatchDay.name;
+                            const timeStr = watch("batchTime");
+                            return (
+                              <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                                Slot "{dayName}" at {timeStr} is full (
+                                {enrolled}/{seats.totalSeats} enrolled). Pick
+                                another slot or increase the cap on the
+                                Courses page.
+                              </div>
+                            );
+                          })()
+                        )}
                     </div>
                   </div>
                 )}

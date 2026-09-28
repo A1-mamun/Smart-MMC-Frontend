@@ -29,6 +29,7 @@ import {
 import StudentsTable from "./StudentsTable";
 import RecordPaymentModal from "@/components/modules/payments/RecordPaymentModal";
 import PaymentReceiptView from "@/components/modules/payments/PaymentReceiptView";
+import { printPaymentReceipt } from "@/utils/printReceipt";
 import SmsComposer from "@/components/modules/sms/SmsComposer";
 import { useAppSelector } from "@/redux/hooks";
 import { useCurrentUser } from "@/redux/features/auth/authSlice";
@@ -60,7 +61,9 @@ const Students = ({
   const [search, setSearch] = useState(query.searchTerm || "");
   const [payingStudent, setPayingStudent] = useState<TStudent | null>(null);
   // Drives the full-page receipt overlay shown right after a successful payment.
-  const [recordedPayment, setRecordedPayment] = useState<TPaymentRecord | null>(null);
+  const [recordedPayment, setRecordedPayment] = useState<TPaymentRecord | null>(
+    null,
+  );
   // When the user clicks the per-row MessageSquare action we open the SMS
   // composer in a Dialog, pre-filled with that single recipient. They can
   // still type any number of additional recipients before sending.
@@ -169,10 +172,30 @@ const Students = ({
   // nested `orderBy` object the backend's `StudentOrderByWithRelationInput`
   // accepts but the dropdown UI doesn't have to expose.
   const SORT_OPTIONS = [
-    { key: "newest", label: "Newest first", sortBy: "createdAt", sortOrder: "desc" },
-    { key: "oldest", label: "Oldest first", sortBy: "createdAt", sortOrder: "asc" },
-    { key: "admittedDesc", label: "Most recently admitted", sortBy: "admittedAt", sortOrder: "desc" },
-    { key: "admittedAsc", label: "Admitted earliest first", sortBy: "admittedAt", sortOrder: "asc" },
+    {
+      key: "newest",
+      label: "Newest first",
+      sortBy: "createdAt",
+      sortOrder: "desc",
+    },
+    {
+      key: "oldest",
+      label: "Oldest first",
+      sortBy: "createdAt",
+      sortOrder: "asc",
+    },
+    {
+      key: "admittedDesc",
+      label: "Most recently admitted",
+      sortBy: "admittedAt",
+      sortOrder: "desc",
+    },
+    {
+      key: "admittedAsc",
+      label: "Admitted earliest first",
+      sortBy: "admittedAt",
+      sortOrder: "asc",
+    },
   ] as const;
   type SortKey = (typeof SORT_OPTIONS)[number]["key"];
 
@@ -180,9 +203,9 @@ const Students = ({
   // than a known pair falls back to the default `newest` shown on screen,
   // so the Select never lands on a blank value.
   const currentSortKey: SortKey =
-    (SORT_OPTIONS.find(
+    SORT_OPTIONS.find(
       (o) => o.sortBy === query.sortBy && o.sortOrder === query.sortOrder,
-    )?.key) ?? "newest";
+    )?.key ?? "newest";
 
   return (
     <div className="space-y-6">
@@ -403,9 +426,7 @@ const Students = ({
             <div className="flex items-center gap-2">
               <Activity className="h-4 w-4 text-muted-foreground" />
               <div className="text-sm">
-                <p className="font-medium leading-none">
-                  Active courses only
-                </p>
+                <p className="font-medium leading-none">Active courses only</p>
                 <p className="text-xs text-muted-foreground">
                   Skip inactive / archived
                 </p>
@@ -463,7 +484,7 @@ const Students = ({
                 });
               }}
             >
-              <SelectTrigger className="h-8 w-[80px]">
+              <SelectTrigger className="h-8 w-20">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -520,7 +541,80 @@ const Students = ({
             toast.success("Payment recorded");
             refetch();
           }}
-          onRecorded={(p) => setRecordedPayment(p)}
+          onRecorded={(p, overrideStatus) => {
+            setRecordedPayment(p);
+
+            // Auto-print the receipt right after a successful record.
+            // Same per-payment-math derivation as the student-panel
+            // handleRowPrint (see StudentPayments.tsx): status / fee /
+            // previouslyPaid come from `payingStudent.studentCourses` +
+            // `payingStudent.payments`, NOT from `payingStudent.paymentStatus`
+            // which is the snapshot the list endpoint ships and can be
+            // stale (e.g. the just-recorded payment isn't in it yet).
+            //
+            // If the admin explicitly picked an override on the modal,
+            // honour it; otherwise derive from the math so the PAID
+            // seal renders correctly even when the snapshot would say
+            // PARTIAL.
+            if (!payingStudent) return;
+
+            const scId = p.studentCourseId ?? undefined;
+            const enrollment = scId
+              ? (payingStudent.studentCourses ?? []).find(
+                  (sc) => sc.id === scId,
+                )
+              : undefined;
+            const fee = enrollment
+              ? Number(enrollment.course?.fee ?? 0)
+              : undefined;
+
+            // Previously paid for this enrollment = sum of all OTHER
+            // payments for the same studentCourseId. We deliberately
+            // exclude the just-recorded payment `p` itself; the running
+            // total adds it back below. (If the list endpoint included
+            // `p` already, the `id !==` filter keeps it from double-
+            // counting anyway.)
+            const previouslyPaid = (payingStudent.payments ?? [])
+              .filter((pp) => pp.studentCourseId === scId && pp.id !== p.id)
+              .reduce((sum, pp) => sum + Number(pp.amount), 0);
+            const totalPaidRunning = previouslyPaid + Number(p.amount);
+
+            let derivedStatus: "PAID" | "PARTIAL" | "PENDING" = "PENDING";
+            if (fee !== undefined && fee > 0) {
+              if (totalPaidRunning >= fee) derivedStatus = "PAID";
+              else if (totalPaidRunning > 0) derivedStatus = "PARTIAL";
+            } else if (totalPaidRunning > 0) {
+              derivedStatus = "PARTIAL";
+            }
+            // Honour an explicit admin override (PAID/PARTIAL/PENDING)
+            // when they picked one on the modal. "_auto" or undefined
+            // falls through to the derived value.
+            const paymentStatus =
+              overrideStatus && overrideStatus !== "_auto"
+                ? overrideStatus
+                : derivedStatus;
+
+            const batchLabel = (payingStudent.batches ?? [])
+              .map((b) => `HSC ${String(b.hscBatch).replace(/^BATCH_/, "")}`)
+              .join(", ");
+
+            printPaymentReceipt({
+              payment: p,
+              studentName: payingStudent.user.name,
+              studentId: payingStudent.user.studentId,
+              studentMobile: payingStudent.mobile,
+              studentBatch: batchLabel || undefined,
+              paymentStatus,
+              courseName:
+                enrollment?.course?.name ||
+                p.studentCourse?.course?.name ||
+                undefined,
+              fee,
+              previouslyPaid,
+              collectedByName: currentUser?.name,
+              collectedByRole: currentUser?.role,
+            });
+          }}
         />
       )}
 
@@ -530,9 +624,11 @@ const Students = ({
           studentName={payingStudent.user.name}
           studentId={payingStudent.user.studentId}
           studentMobile={payingStudent.mobile}
-          studentBatch={(payingStudent.batches ?? [])
-            .map((b) => `HSC ${String(b.hscBatch).replace(/^BATCH_/, "")}`)
-            .join(", ") || undefined}
+          studentBatch={
+            (payingStudent.batches ?? [])
+              .map((b) => `HSC ${String(b.hscBatch).replace(/^BATCH_/, "")}`)
+              .join(", ") || undefined
+          }
           paymentStatus={payingStudent.paymentStatus}
           courseName={
             payingStudent.studentCourses?.find(

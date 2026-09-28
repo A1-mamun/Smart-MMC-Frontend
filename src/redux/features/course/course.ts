@@ -1,5 +1,5 @@
 import { baseApi } from "@/redux/api/baseApi";
-import { TCourse } from "@/types/student";
+import { TCourse, TCourseSeats } from "@/types/student";
 import { TApiResponse } from "@/types/common";
 
 type TBatchDayInput = {
@@ -16,6 +16,9 @@ type TCourseInput = {
   description?: string;
   fee?: number;
   hscBatch?: string;
+  // NULL clears the cap (uncapped). Omit the key entirely to leave the
+  // backend's existing value untouched.
+  totalSeats?: number | null;
   isActive?: boolean;
   isCompleted?: boolean;
   batchDays?: TBatchDayInput[];
@@ -51,6 +54,19 @@ const courseApi = baseApi.injectEndpoints({
       // Lets the cascading filter's per-course query refetch instantly when
       // that course is updated/created/deleted/toggled from elsewhere.
       providesTags: (_r, _e, id) => [{ type: "Course", id }],
+    }),
+    /**
+     * Per-slot seat-cap read-out. The admit-form picker consumes this
+     * to disable full (batchDay, batchTime) slots before submission.
+     *
+     * Tag is its own `CourseSeats` family so course-level mutations
+     * don't auto-refetch seat counts (they'd be a no-op anyway since
+     * mutations don't change the per-slot enrollment). Admit
+     * mutations invalidate this tag on success so the picker refetches.
+     */
+    getCourseSeats: build.query<TApiResponse<TCourseSeats>, string>({
+      query: (id) => ({ url: `/course/${id}/seats`, method: "GET" }),
+      providesTags: (_r, _e, id) => [{ type: "CourseSeats", id }],
     }),
     createCourse: build.mutation<TApiResponse<TCourse>, TCourseInput>({
       query: (data) => ({ url: "/course", method: "POST", body: data }),
@@ -144,6 +160,7 @@ const courseApi = baseApi.injectEndpoints({
 export const {
   useGetAllCoursesQuery,
   useGetCourseByIdQuery,
+  useGetCourseSeatsQuery,
   useCreateCourseMutation,
   useUpdateCourseMutation,
   useDeleteCourseMutation,

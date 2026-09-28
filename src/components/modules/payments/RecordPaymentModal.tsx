@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { useRecordPaymentMutation } from "@/redux/features/payment/payment";
 import { paymentMethods } from "@/constants/courseNames";
+import { formatCourseLabel } from "@/constants/labels";
 import { TStudent, TPayment } from "@/types/student";
 import type { TPaymentRecord } from "@/types/payment";
 
@@ -106,11 +107,29 @@ const RecordPaymentModal = ({
       });
   }, [student]);
 
+  // Subset of active enrollments that still owe money. The default-selection
+  // and disable-due-zero logic both branch off this.
+  const dueCourses = useMemo(
+    () => summaries.filter((s) => s.due > 0),
+    [summaries],
+  );
+
+  /**
+   * Auto-pick rules (when no `preselect` is provided):
+   *   • Exactly one enrollment with due > 0 → preselect it. Covers
+   *     single-course students AND the "one paid, one unpaid" case.
+   *   • Multiple enrollments with due > 0 → leave the dropdown empty so
+   *     the staff member picks the right course manually.
+   *   • Zero enrollments with due > 0 (everything paid) → leave empty.
+   *
+   * This matches the user's flow: the dropdown only auto-selects when
+   * there is unambiguous intent.
+   */
   const defaultStudentCourseId =
     preselect?.studentCourseId ??
-    (summaries.length === 1 ? summaries[0].studentCourseId : "");
+    (dueCourses.length === 1 ? dueCourses[0].studentCourseId : "");
   const defaultAmount =
-    preselect?.due ?? (summaries.length === 1 ? summaries[0].due : 0);
+    preselect?.due ?? (dueCourses.length === 1 ? dueCourses[0].due : 0);
 
   const {
     register,
@@ -223,15 +242,28 @@ const RecordPaymentModal = ({
                       <SelectValue placeholder="Select course" />
                     </SelectTrigger>
                     <SelectContent>
-                      {summaries.map((s) => (
-                        <SelectItem
-                          key={s.studentCourseId}
-                          value={s.studentCourseId}
-                        >
-                          {s.courseName.replace(/_/g, " ")} — Due ৳
-                          {s.due.toLocaleString()}
-                        </SelectItem>
-                      ))}
+                      {summaries.map((s) => {
+                        // Disable already-fully-paid courses so staff can't
+                        // accidentally record a payment against an enrollment
+                        // that owes nothing. The auto-select logic above
+                        // (dueCourses.length === 1) handles the "one paid,
+                        // one unpaid" case automatically — the paid one
+                        // stays disabled, the unpaid one is preselected.
+                        const isPaidOff = s.due <= 0;
+                        return (
+                          <SelectItem
+                            key={s.studentCourseId}
+                            value={s.studentCourseId}
+                            disabled={isPaidOff}
+                          >
+                            {formatCourseLabel(s.courseName)}
+                            {" — "}
+                            {isPaidOff
+                              ? "Fully paid"
+                              : `Due ৳${s.due.toLocaleString()}`}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 )}
@@ -241,6 +273,17 @@ const RecordPaymentModal = ({
                   Fee ৳{selectedSummary.fee.toLocaleString()} · Paid ৳
                   {selectedSummary.paid.toLocaleString()} · Due ৳
                   {selectedSummary.due.toLocaleString()}
+                </p>
+              )}
+              {dueCourses.length > 1 && (
+                <p className="text-xs text-muted-foreground">
+                  {dueCourses.length} courses have a balance — please pick one
+                  to pay.
+                </p>
+              )}
+              {dueCourses.length === 0 && summaries.length > 0 && (
+                <p className="text-xs text-emerald-600">
+                  All enrollments are fully paid. Nothing to record.
                 </p>
               )}
             </div>

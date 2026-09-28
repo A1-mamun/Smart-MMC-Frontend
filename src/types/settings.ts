@@ -4,35 +4,15 @@
  * Mirrors `settings.validation.ts` on the backend.
  */
 
-export type TAbsentWarningMode = "OFF" | "MANUAL" | "AUTO";
-
-export type TWeekday =
-  | "Sunday"
-  | "Monday"
-  | "Tuesday"
-  | "Wednesday"
-  | "Thursday"
-  | "Friday"
-  | "Saturday";
-
-export const WEEKDAYS: TWeekday[] = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
-
-export type TAbsentWarningConfig = {
-  mode: TAbsentWarningMode;
-  dayOfWeek: TWeekday;
-  hour: number;
-  minute: number;
-  message: string;
-  lookbackDays: number;
-};
+/**
+ * Absent-warning is no longer user-configurable (per the latest spec:
+ * always-on, today only, father-only, hardcoded message). The Settings
+ * row is kept on the backend for backward compat with already-deployed
+ * clients — its shape is the empty object below. We still type it
+ * here so the Redux selector that dereferences
+ * `state.settings.config.data.absentWarning` keeps compiling.
+ */
+export type TAbsentWarningConfig = Record<string, never>;
 
 /**
  * Exam-absence father-warning feature. When enabled, the cron fires
@@ -62,24 +42,15 @@ export type TSettingsConfig = {
 };
 
 /**
- * Flat patch shape accepted by the server's upsert endpoint. The body
- * uses bare names for the absent-warning fields and `examAbsence*` for
- * the new ones — the server projects them onto the right sub-config
- * before persisting.
+ * Flat patch shape accepted by the server's upsert endpoint. The
+ * absent-warning PATCH fields have been removed — that feature is no
+ * longer user-configurable. Only the exam-absence fields remain.
  *
  * Every field is optional; the server merges with the stored row and
  * re-validates the merged result before writing.
  */
 export type TSettingsConfigPatch = Partial<{
-  // absent-warning
-  mode: TAbsentWarningMode;
-  dayOfWeek: TWeekday;
-  hour: number;
-  minute: number;
-  message: string;
-  absentMessage: string;
-  lookbackDays: number;
-  // exam-absence
+  // exam-absence only
   examAbsenceEnabled: boolean;
   examAbsenceDelayDays: number;
   examAbsenceHour: number;
@@ -105,16 +76,11 @@ export type TRunExamAbsenceWarningResult = {
  * Pre-baked defaults — the backend returns these too when no row has
  * ever been written. We keep a frontend copy so the form can render
  * sensible values before the GET round-trips.
+ *
+ * The absent-warning default is an empty object — the service code
+ * never reads it.
  */
-export const DEFAULT_ABSENT_WARNING_CONFIG: TAbsentWarningConfig = {
-  mode: "MANUAL",
-  dayOfWeek: "Tuesday",
-  hour: 10,
-  minute: 0,
-  message:
-    "Dear parent, your ward {studentName} was absent from class on {classDate}. Please ensure regular attendance.",
-  lookbackDays: 1,
-};
+export const DEFAULT_ABSENT_WARNING_CONFIG: TAbsentWarningConfig = {};
 
 export const DEFAULT_EXAM_ABSENCE_CONFIG: TExamAbsenceConfig = {
   enabled: false,

@@ -29,13 +29,15 @@ import QuickScenarioFilters, {
 
 /**
  * Decide which mobile to send to when the admin is using the
- * absent-warning picker. Mirrors the backend's father → mother → self
- * fallback chain. When `absentOnDate` is empty (regular flow), we keep
- * the existing behaviour of using the student's own mobile.
+ * absent-warning picker. Per the latest spec the absent-warning flow
+ * (both automated job AND manual picker) targets the father ONLY —
+ * no mother / self fallback. When `absentOnDate` is empty (regular
+ * flow), we keep the existing behaviour of using the student's own
+ * mobile.
  */
 const pickWarningMobile = (s: TStudent, absentOnDate: string): string => {
   if (!absentOnDate) return s.mobile;
-  return s.fatherMobile || s.motherMobile || s.mobile;
+  return s.fatherMobile || "";
 };
 
 type Props = {

@@ -57,6 +57,14 @@ export type TStudentBatch = {
   batchDay: TBatchDay;
   batchTime: TBatchTime;
   hscBatch: THscBatch;
+  /**
+   * The BatchDay row this StudentBatch points at. Carries the canonical
+   * `days[]` (weekday names) and `times[]` (freeform time strings) for
+   * the parent course. May be null if the underlying BatchDay was hard-
+   * deleted — `student.batches` then degrades to showing just the
+   * legacy `batchDay` string + `batchTime`.
+   */
+  batchDayRel?: TCourseBatchDay | null;
 };
 
 export type TPaymentStatus = 'PAID' | 'PARTIAL' | 'PENDING';
@@ -118,6 +126,24 @@ export type TCourse = {
   isCompleted?: boolean;
   completedAt?: string | null;
   completedBy?: string | null;
+  // Per-course seat cap. NULL = uncapped. The backend enforces this
+  // inside the admit/re-enroll transaction (with a SELECT … FOR UPDATE
+  // on the course row), so concurrent admits can't slip past the cap.
+  // Admins edit the value from the Courses page.
+  //
+  // SEMANTICS: this number is the cap PER (batchDay, batchTime) slot,
+  // not per course. A course with 2 batchDays × 2 times[] = 4 slots
+  // gets cap = totalSeats on each slot (effectively 4 × totalSeats
+  // total seats across the course). The admit-form picker uses the
+  // `GET /course/:id/seats` endpoint to surface per-slot fullness.
+  totalSeats?: number | null;
+  // Populated by Prisma's `_count` on the course include. Counts
+  // StudentCourse rows linked to this course (including soft-deleted).
+  // NOT authoritative for admission — the per-slot count returned by
+  // `GET /course/:id/seats` is. Kept on the type for backward
+  // compatibility with existing call sites; new seat-cap UX should
+  // use `TCourseSeats` from that endpoint instead.
+  _count?: { studentCourses?: number };
   batchDays?: TCourseBatchDay[];
 };
 
@@ -128,6 +154,31 @@ export type TCourseBatchDay = {
   days: string[];
   times: string[];
   position: number;
+};
+
+/**
+ * Per-slot seat-cap read-out returned by `GET /course/:id/seats`.
+ *
+ * `enrolled` is the live count of `StudentBatch` rows for the slot
+ * (i.e. how many students are currently occupying it). Slots that
+ * have never been used are simply absent from the `slots` array —
+ * the picker renders them with `enrolled = 0` via the Map.get
+ * fallback.
+ */
+export type TCourseSlotSeats = {
+  batchDayId: string;
+  batchTime: string;
+  enrolled: number;
+};
+
+/**
+ * Response shape for the per-slot seat-cap endpoint. `totalSeats`
+ * mirrors `Course.totalSeats` (NULL = uncapped); `slots` lists each
+ * (batchDay, batchTime) that has at least one enrolled student.
+ */
+export type TCourseSeats = {
+  totalSeats: number | null;
+  slots: TCourseSlotSeats[];
 };
 
 export type TPayment = {

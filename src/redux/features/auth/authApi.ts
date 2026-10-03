@@ -14,6 +14,10 @@ type TLoginData = {
     name: string;
     role: "SUPER_ADMIN" | "ADMIN" | "STUDENT";
     mustChangePassword: boolean;
+    // Surfaced from the backend for free-class accounts so the signin
+    // page can redirect to /dashboard/free-classes without a second
+    // /auth/me roundtrip.
+    isFreeAccount?: boolean;
   };
   accessToken: string;
 };

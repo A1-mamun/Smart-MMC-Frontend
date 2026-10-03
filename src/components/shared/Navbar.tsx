@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { GraduationCap, LogOut, User } from "lucide-react";
+import { GraduationCap, LogOut, PlayCircle, User } from "lucide-react";
 import { toast } from "sonner";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { logOut, useCurrentUser } from "@/redux/features/auth/authSlice";
@@ -30,6 +30,12 @@ const Navbar = () => {
         </Link>
 
         <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/free-classes">
+              <PlayCircle className="h-4 w-4" />
+              <span>Free Classes</span>
+            </Link>
+          </Button>
           <ThemeToggle />
           {user ? (
             <>

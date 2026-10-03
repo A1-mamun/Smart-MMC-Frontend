@@ -13,6 +13,7 @@ import {
   MessageSquare,
   Award,
   Settings,
+  PlayCircle,
 } from "lucide-react";
 
 export type NavItem = {
@@ -33,6 +34,11 @@ export const adminNavItems: NavItem[] = [
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
   { label: "Activity Log", href: "/dashboard/activity", icon: Activity },
   { label: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
+  // Admin CRUD for the free-class content tree (subjects → chapters →
+  // topics). Lives under /dashboard/free-classes so it picks up the
+  // admin sidebar; the /free-classes landing for students is a
+  // separate CommonLayout page.
+  { label: "Free Classes", href: "/dashboard/free-classes", icon: PlayCircle },
   { label: "Admin Users", href: "/dashboard/users", icon: Shield, superAdminOnly: true },
 ];
 

@@ -296,6 +296,12 @@ export type TStudentQuery = {
    * Used by the absent-warning SMS picker on /dashboard/sms.
    */
   absentOnDate?: string;
+  /**
+   * Free-vs-paid segregation. `false` hides free-class accounts (paid
+   * dashboard default); `true` shows only the marketer roster; `undefined`
+   * returns everyone. Mirrors the backend `isFreeAccount` filter.
+   */
+  isFreeAccount?: boolean;
   page?: number;
   limit?: number;
   sortBy?: string;

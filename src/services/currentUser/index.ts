@@ -6,6 +6,10 @@ interface DecodedToken {
   name: string;
   role: "SUPER_ADMIN" | "ADMIN" | "STUDENT";
   studentId: string;
+  // Surfaced from the backend so the proxy can route free students to
+  // /dashboard/free-classes instead of /dashboard/student. Mirrors
+  // src/types/user.ts and the backend TJwtPayload.
+  isFreeAccount?: boolean;
   iat?: number;
   exp?: number;
 }

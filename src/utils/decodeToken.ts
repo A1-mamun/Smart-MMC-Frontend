@@ -6,6 +6,7 @@ type TDecoded = {
   name: string;
   role: TUserRole;
   studentId: string;
+  isFreeAccount?: boolean;
   iat?: number;
   exp?: number;
 };
@@ -19,6 +20,7 @@ export const verifyToken = (token: string): { user: TUser } => {
       name: decoded.name,
       role: decoded.role,
       mustChangePassword: false,
+      isFreeAccount: decoded.isFreeAccount ?? false,
       iat: decoded.iat,
       exp: decoded.exp,
     },

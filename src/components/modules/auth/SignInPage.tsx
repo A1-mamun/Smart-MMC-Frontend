@@ -53,6 +53,10 @@ const SignInPage = () => {
       if (res.success && res.data?.accessToken) {
         const { user } = verifyToken(res.data.accessToken);
         user.mustChangePassword = res.data.user?.mustChangePassword || false;
+        // Trust the server's payload over the JWT decode so a token
+        // minted before isFreeAccount was added still reflects the
+        // current DB state.
+        user.isFreeAccount = !!res.data.user?.isFreeAccount;
         dispatch(setUser({ user, token: res.data.accessToken }));
 
         toast.success("Logged in successfully");
@@ -60,7 +64,15 @@ const SignInPage = () => {
           const target = user.role === "STUDENT" ? "/dashboard/student/change-password" : "/dashboard/change-password";
           router.push(target);
         } else {
-          const target = user.role === "STUDENT" ? "/dashboard/student" : redirect || "/dashboard";
+          // Free-class accounts land on /free-classes (their content
+          // home). Paid students land on the paid dashboard. Admins
+          // honour the original ?redirectPath so deep links work.
+          const target =
+            user.role === "STUDENT"
+              ? user.isFreeAccount
+                ? "/free-classes"
+                : "/dashboard/student"
+              : redirect || "/dashboard";
           router.push(target);
         }
       }

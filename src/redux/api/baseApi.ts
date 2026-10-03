@@ -54,7 +54,13 @@ const baseQueryWithRefreshToken: BaseQueryFn<
     (url.includes("/auth/sign-in") ||
       url.includes("/auth/refresh-token") ||
       url.includes("/auth/forgot-password") ||
-      url.includes("/auth/reset-password"));
+      url.includes("/auth/reset-password") ||
+      // Free-class endpoints own their own 401/409 contracts (the signup
+      // form surfaces 409 duplicates and 400 validation errors verbatim,
+      // and a failed free-login should NOT trigger a refresh-token
+      // cascade that wipes the redux session).
+      url.includes("/free-class/signup") ||
+      url.includes("/free-class/login"));
   if (result?.error?.status === 401 && !isAuthEndpoint) {
     try {
       const res = await fetch(
@@ -84,7 +90,7 @@ export const baseApi = createApi({
   baseQuery: baseQueryWithRefreshToken,
   // Tags drive automatic cache invalidation. When a mutation invalidates one of
   // these tags, every query that provided the same tag will refetch.
-  tagTypes: ["Student", "Payment", "Course", "CourseSeats", "Attendance", "Activity", "Dashboard", "Sms", "Exam", "ExamResult", "Settings"],
+  tagTypes: ["Student", "Payment", "Course", "CourseSeats", "Attendance", "Activity", "Dashboard", "Sms", "Exam", "ExamResult", "Settings", "FreeContent"],
   // Refetch lists whenever the window regains focus (e.g. user navigates back
   // to the page from elsewhere) so the data is always fresh.
   refetchOnFocus: true,

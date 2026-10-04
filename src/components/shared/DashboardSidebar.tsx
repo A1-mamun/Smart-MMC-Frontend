@@ -1,11 +1,14 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { GraduationCap } from "lucide-react";
 import { useAppSelector } from "@/redux/hooks";
 import { useCurrentUser } from "@/redux/features/auth/authSlice";
 import { adminNavItems, studentNavItems } from "@/data";
 import { cn } from "@/lib/utils";
+import ThemeLogo from "./ThemeLogo";
+import logoCollapsedColor from "@/assets/logos/logo-collapsed-color.png";
+import logoCollapsedWhite from "@/assets/logos/logo-collapsed-white.png";
 
 type NavItem = {
   label: string;
@@ -57,9 +60,8 @@ const NavBody = ({
   if (variant === "drawer") {
     return (
       <div className="flex h-full flex-col">
-        <div className="flex h-14 items-center gap-2 border-b px-4 font-semibold">
-          <GraduationCap className="h-5 w-5 text-primary" />
-          <span>MEHEDI MATH</span>
+        <div className="flex h-14 items-center border-b px-4">
+          <ThemeLogo height={150} />
         </div>
         <nav className="flex-1 space-y-1 p-3">
           {items.map((item) => {
@@ -98,7 +100,7 @@ const NavBody = ({
             href={item.href}
             title={collapsed ? item.label : undefined}
             className={cn(
-              "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
+              "flex w-full items-center rounded-md px-3 py-2 text-sm transition-colors",
               collapsed ? "justify-center" : "gap-3",
               active
                 ? "bg-primary text-primary-foreground"
@@ -140,22 +142,45 @@ const DashboardSidebar = ({
     <aside
       className={cn(
         "hidden lg:flex lg:flex-col lg:border-r lg:bg-card transition-[width] duration-200",
-        collapsed ? "lg:w-12" : "lg:w-52",
+        collapsed ? "lg:w-16" : "lg:w-52",
       )}
     >
       <div
         className={cn(
-          "flex h-14 items-center gap-2 border-b font-semibold",
+          "flex h-14 shrink-0 items-center border-b overflow-hidden",
           collapsed ? "justify-center px-0" : "px-4",
         )}
       >
-        <GraduationCap
-          className={cn(
-            "text-primary shrink-0",
-            collapsed ? "h-7 w-7" : "h-5 w-5",
-          )}
-        />
-        {!collapsed && <span>MEHEDI MATH</span>}
+        {collapsed ? (
+          // Square mark shown when the sidebar is collapsed. Two variants
+          // are kept mounted and toggled via Tailwind's `dark:` variant so
+          // theme changes don't flash — same pattern as ThemeLogo.
+          //
+          // Both images live in a single absolute-positioned wrapper so
+          // they overlap (one visible per theme) without taking up two
+          // flex slots. Sizing is constrained to a 32px box centered in
+          // the header — earlier `h-full w-full` squashed the square
+          // logos into a 64x56 strip and made them overflow into the
+          // first nav item, which intercepted clicks on "Dashboard".
+          <>
+            <Image
+              src={logoCollapsedColor}
+              alt="MMC"
+              width={32}
+              height={32}
+              className="h-full w-full shrink-0 dark:hidden"
+            />
+            <Image
+              src={logoCollapsedWhite}
+              alt="MMC"
+              width={32}
+              height={32}
+              className="hidden h-full w-full shrink-0 dark:block"
+            />
+          </>
+        ) : (
+          <ThemeLogo height={150} />
+        )}
       </div>
       <NavBody
         items={visibleItems}

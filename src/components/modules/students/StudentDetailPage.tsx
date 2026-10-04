@@ -7,6 +7,7 @@ import { useGetStudentPaymentsQuery } from "@/redux/features/payment/payment";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -43,7 +44,22 @@ const StudentDetailPage = ({ params }: Props) => {
   const { data: paymentData, refetch: refetchPayments } = useGetStudentPaymentsQuery(id);
   const [deleteStudent] = useDeleteStudentMutation();
   const [paymentOpen, setPaymentOpen] = useState(false);
+  // Custom confirmation modal — replaces the blocking `window.confirm()`
+  // for the delete button so the warning matches the dashboard's design
+  // tokens and stays keyboard-accessible.
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
+  // Drives the full-page receipt overlay shown right after a successful payment.
   const [recordedPayment, setRecordedPayment] = useState<TPaymentRecord | null>(null);
+  // Math snapshot from the just-recorded payment, captured in onRecorded so
+  // the receipt can render with the correct post-payment status / fee /
+  // previouslyPaid instead of the stale `student.paymentStatus` snapshot
+  // (the StudentCourse.status hasn't been refetched yet at the moment the
+  // receipt opens, so it would otherwise still say PENDING).
+  const [receiptMath, setReceiptMath] = useState<{
+    paymentStatus: "PAID" | "PARTIAL" | "PENDING";
+    fee: number | undefined;
+    previouslyPaid: number | undefined;
+  } | null>(null);
   const currentUser = useAppSelector(useCurrentUser);
 
   if (isLoading) {
@@ -64,7 +80,15 @@ const StudentDetailPage = ({ params }: Props) => {
   const payments = paymentData?.data?.payments || [];
 
   const handleDelete = async () => {
-    if (!confirm("Soft-delete this student? This can be reversed by an admin.")) return;
+    const ok = await confirm({
+      title: "Soft-delete this student?",
+      description:
+        "The student will be marked as deleted and removed from active rosters. This can be reversed by an admin.",
+      detail: `${student.user.name} · ${student.user.studentId}`,
+      confirmLabel: "Delete",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       await deleteStudent({ id, hard: false }).unwrap();
       toast.success("Student deleted");
@@ -302,7 +326,42 @@ const StudentDetailPage = ({ params }: Props) => {
           refetch();
           refetchPayments();
         }}
-        onRecorded={(p) => setRecordedPayment(p)}
+        onRecorded={(p, overrideStatus) => {
+            // Same post-payment math as the Students.tsx onRecorded
+            // handler — we derive fee / previouslyPaid from the student
+            // snapshot + just-recorded payment, then reconcile a payment
+            // status from the math (with the admin's manual override as
+            // a floor). The receipt reads these via `receiptMath` so it
+            // renders the correct status immediately — the post-mutation
+            // refetch still hasn't landed, so the StudentCourse.status
+            // is still the pre-payment snapshot.
+            const scId = p.studentCourseId ?? undefined;
+            const enrollment = scId
+              ? (student.studentCourses ?? []).find((sc) => sc.id === scId)
+              : undefined;
+            const fee = enrollment
+              ? Number(enrollment.course?.fee ?? 0)
+              : undefined;
+            const previouslyPaid = (student.payments ?? [])
+              .filter((pp) => pp.studentCourseId === scId && pp.id !== p.id)
+              .reduce((sum, pp) => sum + Number(pp.amount), 0);
+            const totalPaidRunning = previouslyPaid + Number(p.amount);
+
+            let derivedStatus: "PAID" | "PARTIAL" | "PENDING" = "PENDING";
+            if (fee !== undefined && fee > 0) {
+              if (totalPaidRunning >= fee) derivedStatus = "PAID";
+              else if (totalPaidRunning > 0) derivedStatus = "PARTIAL";
+            } else if (totalPaidRunning > 0) {
+              derivedStatus = "PARTIAL";
+            }
+            const paymentStatus =
+              overrideStatus && overrideStatus !== "_auto"
+                ? overrideStatus
+                : derivedStatus;
+
+            setRecordedPayment(p);
+            setReceiptMath({ paymentStatus, fee, previouslyPaid });
+          }}
       />
 
       {recordedPayment && (
@@ -314,7 +373,13 @@ const StudentDetailPage = ({ params }: Props) => {
           studentBatch={(student.batches ?? [])
             .map((b) => `HSC ${String(b.hscBatch).replace(/^BATCH_/, "")}`)
             .join(", ") || undefined}
-          paymentStatus={student.paymentStatus}
+          // Use the math captured in onRecorded rather than the stale
+          // `student.paymentStatus` snapshot. The receipt also self-
+          // reconciles from fee + previouslyPaid + amount, so even
+          // before receiptMath is populated the right status renders.
+          paymentStatus={receiptMath?.paymentStatus}
+          fee={receiptMath?.fee}
+          previouslyPaid={receiptMath?.previouslyPaid}
           courseName={
             student.studentCourses?.find(
               (sc) => sc.id === recordedPayment.studentCourseId,
@@ -322,13 +387,17 @@ const StudentDetailPage = ({ params }: Props) => {
           }
           collectedByName={currentUser?.name}
           collectedByRole={currentUser?.role}
-          onBack={() => setRecordedPayment(null)}
+          onBack={() => {
+            setRecordedPayment(null);
+            setReceiptMath(null);
+          }}
         />
       )}
 
       <div className="hidden">
         <button onClick={() => refetch()}>refresh</button>
       </div>
+      {confirmDialog}
     </div>
   );
 };

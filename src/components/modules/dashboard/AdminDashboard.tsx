@@ -4,10 +4,10 @@ import {
   CheckCircle2,
   AlertCircle,
   CalendarCheck2,
-  TrendingUp,
   Wallet,
   CreditCard,
   Activity,
+  Gift,
 } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +32,7 @@ import { TActivityLog } from "@/types/activityLog";
 import { formatBatchLabel } from "@/constants/labels";
 import dayjs from "dayjs";
 
-const PIE_COLORS = ["#0ea5e9", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6"];
+const PIE_COLORS = ["#fa7604", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6"];
 
 const AdminDashboard = () => {
   const { data, isLoading } = useGetAdminDashboardQuery(undefined, {
@@ -104,12 +104,25 @@ const AdminDashboard = () => {
           icon={AlertCircle}
           sublabel="Students with due amount"
         />
-        <StatCard
-          label="Overdue Records"
-          value={cards.overdueRecords}
-          icon={TrendingUp}
-          sublabel="Past due date, unpaid"
-        />
+        {/* Free-class accounts — students who signed up via /free-classes
+            but never enrolled in a paid course. Wired up as a clickable
+            card so the marketer / admin can drill into the free roster
+            directly. The KPI is independent of the paid totals above
+            (the /dashboard/students list defaults to isFreeAccount:false).
+            Replaces the previous "Overdue Records" tile — overdue counts
+            already surface on the via students page + payments view, so
+            the dashboard didn't need to carry a second copy. */}
+        <Link
+          href="/dashboard/free-students"
+          className="block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <StatCard
+            label="Free Students"
+            value={cards.freeStudents ?? 0}
+            icon={Gift}
+            sublabel="Free-class signups (no paid course)"
+          />
+        </Link>
         <StatCard
           label="Collected This Month"
           value={`৳${cards.collectedThisMonth.toLocaleString()}`}
@@ -157,7 +170,7 @@ const AdminDashboard = () => {
                 <XAxis dataKey="label" />
                 <YAxis />
                 <Tooltip formatter={(v: number) => `৳${v.toLocaleString()}`} />
-                <Bar dataKey="collected" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="collected" fill="#fa7604" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>

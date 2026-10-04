@@ -115,7 +115,7 @@ const FreeClassSignupForm = () => {
         user.isFreeAccount = !!res.data.user?.isFreeAccount;
         dispatch(setUser({ user, token: res.data.accessToken }));
 
-        toast.success("Welcome to Smart MMC Free Classes!");
+        toast.success("Welcome to MEHEDI MATH Free Classes!");
         // Stay on /free-classes — the FreeClassLanding component re-renders
         // with the now-logged-in user and switches to the content view.
         router.refresh();

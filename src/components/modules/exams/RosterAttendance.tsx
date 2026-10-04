@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Switch } from "@/components/ui/switch";
 import {
   Table,
@@ -66,6 +67,10 @@ const RosterAttendance = ({ exam, refetch }: Props) => {
 
   const [setAttendance] = useSetAttendanceMutation();
   const [bulkAttendance] = useBulkAttendanceByStudentIdMutation();
+  // Custom confirmation modal — replaces the blocking `window.confirm()`
+  // for the destructive "mark absent → zero marks" branch so the warning
+  // matches the dashboard's design tokens and stays keyboard-accessible.
+  const { confirm: confirmAction, dialog: confirmDialog } = useConfirmDialog();
 
   // The attendance UI is meaningless before the exam date — the student
   // hasn't taken the exam yet, so we shouldn't let the admin mark them
@@ -118,9 +123,14 @@ const RosterAttendance = ({ exam, refetch }: Props) => {
 
   const toggleAbsent = async (entry: TRosterEntry, isAbsent: boolean) => {
     if (isAbsent && entry.obtainedMarks > 0) {
-      const ok = window.confirm(
-        `${entry.studentName} has ${entry.obtainedMarks} marks entered. Marking absent will ZERO these marks. Continue?`,
-      );
+      const ok = await confirmAction({
+        title: `Zero out ${entry.obtainedMarks} mark${entry.obtainedMarks === 1 ? "" : "s"} for ${entry.studentName}?`,
+        description:
+          "Marking this student ABSENT will set their obtained marks to 0 on this exam. You can re-mark them PRESENT later to restore the marks.",
+        detail: `Current marks: ${entry.obtainedMarks}`,
+        confirmLabel: "Mark absent",
+        variant: "danger",
+      });
       if (!ok) return;
     }
     try {
@@ -274,6 +284,7 @@ const RosterAttendance = ({ exam, refetch }: Props) => {
           </Table>
         </CardContent>
       </Card>
+      {confirmDialog}
     </div>
   );
 };

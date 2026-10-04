@@ -220,13 +220,42 @@ const PaymentsPage = () => {
       .map((b) => `HSC ${String(b.hscBatch).replace(/^BATCH_/, "")}`)
       .join(", ");
 
+    /*
+     * Derive the receipt's payment status from the math, NOT from
+     * `student.paymentStatus` (the snapshot). The snapshot is the
+     * StudentCourse.status from before the just-recorded payment was
+     * persisted server-side, so when the receipt opens it can still say
+     * PENDING even though the math has now reached PAID. Computing it
+     * from the running total matches what the receipt would render once
+     * the post-mutation refetch finally lands — and keeps the auto-print
+     * (which already does this derivation in Students.tsx) in lockstep
+     * with the on-screen receipt.
+     *
+     * `paymentStatus` from the snapshot is honored as an explicit
+     * PAID override (admin wrote off a partial balance) so a manual
+     * PAID override still wins.
+     */
+    const totalPaidRunning =
+      (summary?.paidBefore ?? 0) + Number(payment.amount);
+    const totalFee = summary?.fee ?? 0;
+    let paymentStatus: NonNullable<ReceiptTarget["paymentStatus"]>;
+    if (student.paymentStatus === "PAID") {
+      paymentStatus = "PAID";
+    } else if (totalFee > 0 && totalPaidRunning >= totalFee) {
+      paymentStatus = "PAID";
+    } else if (totalPaidRunning > 0) {
+      paymentStatus = "PARTIAL";
+    } else {
+      paymentStatus = "PENDING";
+    }
+
     return {
       payment,
       studentName: student.user.name,
       studentId: student.user.studentId,
       studentMobile: student.mobile,
       studentBatch: batchLabel || undefined,
-      paymentStatus: student.paymentStatus,
+      paymentStatus,
       courseName: summary?.courseName ?? payment.studentCourse?.course?.name,
       fee: summary?.fee,
       previouslyPaid: summary?.paidBefore,

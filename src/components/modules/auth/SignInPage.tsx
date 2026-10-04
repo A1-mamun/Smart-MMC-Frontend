@@ -90,7 +90,7 @@ const SignInPage = () => {
           <GraduationCap className="h-6 w-6" />
         </div>
         <CardTitle className="text-2xl">Welcome back</CardTitle>
-        <CardDescription>Sign in to your Smart MMC account</CardDescription>
+        <CardDescription>Sign in to your MEHEDI MATH account</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

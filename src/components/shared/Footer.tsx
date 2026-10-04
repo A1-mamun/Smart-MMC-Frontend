@@ -42,7 +42,7 @@ const Footer = () => {
           <div className="md:col-span-1">
             <Link href="/" className="inline-flex items-center gap-2 font-semibold">
               <GraduationCap className="h-5 w-5 text-primary" />
-              <span>Smart MMC</span>
+              <span>MEHEDI MATH</span>
             </Link>
             <p className="mt-3 text-sm text-muted-foreground">
               A modern coaching ecosystem with NFC-powered attendance, payment
@@ -120,7 +120,7 @@ const Footer = () => {
         <Separator className="my-8" />
 
         <div className="flex flex-col items-center justify-between gap-3 text-center text-xs text-muted-foreground sm:flex-row sm:text-left">
-          <p>© {new Date().getFullYear()} Smart MMC. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} MEHEDI MATH. All rights reserved.</p>
           <p>Built with care for students, parents &amp; teachers.</p>
         </div>
       </div>

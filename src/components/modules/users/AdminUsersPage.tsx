@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ShieldPlus, Trash2 } from "lucide-react";
 import {
   Table,
@@ -45,13 +46,25 @@ const AdminUsersPage = () => {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteUser, { isLoading: deleting }] = useDeleteUserMutation();
+  // Custom confirmation modal — replaces the blocking `window.confirm()`
+  // for the per-row remove action so the warning matches the dashboard's
+  // design tokens and stays keyboard-accessible.
+  const { confirm: confirmAction, dialog: confirmDialog } = useConfirmDialog();
 
   const isLoading = superAdmins.isLoading || admins.isLoading;
   const rows = [...(superAdmins.data?.data ?? []), ...(admins.data?.data ?? [])];
   const total = (superAdmins.data?.meta?.total ?? 0) + (admins.data?.meta?.total ?? 0);
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Remove ${name}? They won't be able to log in anymore.`)) return;
+    const ok = await confirmAction({
+      title: `Remove ${name}?`,
+      description:
+        "This admin won't be able to log in anymore. Their existing activity logs and audit history are kept intact.",
+      detail: "Admin account removal",
+      confirmLabel: "Remove",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       await deleteUser(id).unwrap();
       toast.success(`${name} removed`);
@@ -190,6 +203,7 @@ const AdminUsersPage = () => {
           onClose={() => setCreateOpen(false)}
         />
       )}
+      {confirmDialog}
     </div>
   );
 };

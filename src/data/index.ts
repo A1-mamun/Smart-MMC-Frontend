@@ -14,6 +14,7 @@ import {
   Award,
   Settings,
   PlayCircle,
+  Gift,
 } from "lucide-react";
 
 export type NavItem = {
@@ -39,6 +40,11 @@ export const adminNavItems: NavItem[] = [
   // admin sidebar; the /free-classes landing for students is a
   // separate CommonLayout page.
   { label: "Free Classes", href: "/dashboard/free-classes", icon: PlayCircle },
+  // Roster of free-class accounts — students who signed up via the
+  // public /free-classes landing and never enrolled in a paid course.
+  // Sits next to the paid Students entry so admins can flip between
+  // the two without leaving the sidebar.
+  { label: "Free Students", href: "/dashboard/free-students", icon: Gift },
   { label: "Admin Users", href: "/dashboard/users", icon: Shield, superAdminOnly: true },
 ];
 

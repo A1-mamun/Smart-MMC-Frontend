@@ -80,7 +80,7 @@ const AnalyticsPage = () => {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Bar dataKey="studentCount" fill="#0ea5e9" name="Students" />
+              <Bar dataKey="studentCount" fill="#fa7604" name="Students" />
               <Bar dataKey="paidCount" fill="#22c55e" name="Fully paid" />
               <Bar dataKey="dueCount" fill="#ef4444" name="Has due" />
             </BarChart>
@@ -99,7 +99,7 @@ const AnalyticsPage = () => {
               <XAxis dataKey="label" />
               <YAxis />
               <Tooltip formatter={(v: number) => `৳${v.toLocaleString()}`} />
-              <Bar dataKey="collected" fill="#0ea5e9" />
+              <Bar dataKey="collected" fill="#fa7604" />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>

@@ -30,7 +30,10 @@ export interface VideoProvider {
     container: HTMLElement,
     options?: VideoProviderRenderOptions,
   ) => void;
-  teardown: (container: HTMLElement) => void;
+  // Container can be null if the React component unmounts before its
+  // effect cleanup runs (e.g. the player modal closes mid-render).
+  // Providers must guard before touching it.
+  teardown: (container: HTMLElement | null) => void;
 }
 
 export const youtubeProvider: VideoProvider = {
@@ -57,7 +60,7 @@ export const youtubeProvider: VideoProvider = {
     container.appendChild(iframe);
   },
   teardown(container) {
-    container.replaceChildren();
+    container?.replaceChildren();
   },
 };
 
@@ -73,7 +76,7 @@ export const vdoCipherProvider: VideoProvider = {
     container.appendChild(note);
   },
   teardown(container) {
-    container.replaceChildren();
+    container?.replaceChildren();
   },
 };
 
@@ -85,7 +88,7 @@ export const fileProvider: VideoProvider = {
     container.appendChild(note);
   },
   teardown(container) {
-    container.replaceChildren();
+    container?.replaceChildren();
   },
 };
 

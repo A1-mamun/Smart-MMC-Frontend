@@ -127,7 +127,7 @@ const PlayerPanel = ({
       // audio because they were triggered by a click.
       startMuted: !hasInteracted,
     });
-    return () => provider.teardown(containerRef.current!);
+    return () => provider.teardown(containerRef.current);
   }, [data, resolvedTopicId, current]);
 
   // Always tear down on unmount (e.g. parent closes the player).
@@ -210,11 +210,11 @@ const PlayerPanel = ({
           </h2>
 
           {/* Prev / next row */}
-          <div className="flex items-stretch gap-2">
+          <div className="flex gap-2">
             <Button
               type="button"
               variant="outline"
-              className="flex-1 justify-between"
+              className="justify-between"
               onClick={onPrev}
               disabled={!prev}
               aria-label="Previous topic"
@@ -227,9 +227,9 @@ const PlayerPanel = ({
                     <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">
                       Previous
                     </span>
-                    <span className="block truncate text-sm font-medium">
+                    {/* <span className="block truncate text-sm font-medium">
                       {prev.title}
-                    </span>
+                    </span> */}
                   </>
                 ) : (
                   <span className="block text-sm text-muted-foreground">
@@ -240,7 +240,7 @@ const PlayerPanel = ({
             </Button>
             <Button
               type="button"
-              className="flex-1 justify-between"
+              className="justify-between"
               onClick={onNext}
               disabled={!next}
               aria-label="Next topic"
@@ -252,14 +252,12 @@ const PlayerPanel = ({
                     <span className="block text-[10px] uppercase tracking-wider opacity-80">
                       Next
                     </span>
-                    <span className="block truncate text-sm font-medium">
+                    {/* <span className="block truncate text-sm font-medium">
                       {next.title}
-                    </span>
+                    </span> */}
                   </>
                 ) : (
-                  <span className="block text-sm">
-                    You've reached the end!
-                  </span>
+                  <span className="block text-sm">No Next Topic</span>
                 )}
               </span>
               <ChevronRight className="h-4 w-4" />

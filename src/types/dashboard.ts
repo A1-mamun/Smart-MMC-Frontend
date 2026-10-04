@@ -15,6 +15,12 @@ export type TAdminDashboardCards = {
   totalDueAmount: number;
   todayAttendance: number;
   monthAttendance: number;
+  /**
+   * Free-class accounts (signed up only via /free-classes, no paid
+   * course enrolled). Surfaced as a dedicated KPI so the marketing team
+   * can track the cold-lead pool separately from paying students.
+   */
+  freeStudents: number;
 };
 
 export type TPaymentStatus = 'PAID' | 'PARTIAL' | 'PENDING';

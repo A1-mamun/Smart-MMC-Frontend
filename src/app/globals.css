@@ -37,7 +37,7 @@
   --card-foreground: #0f172a;
   --popover: #ffffff;
   --popover-foreground: #0f172a;
-  --primary: #0ea5e9;
+  --primary: #fa7604;
   --primary-foreground: #ffffff;
   --secondary: #f1f5f9;
   --secondary-foreground: #0f172a;
@@ -49,7 +49,7 @@
   --destructive-foreground: #fafafa;
   --border: #e2e8f0;
   --input: #e2e8f0;
-  --ring: #0ea5e9;
+  --ring: #fa7604;
 }
 
 .dark {
@@ -59,8 +59,12 @@
   --card-foreground: #fafafa;
   --popover: #0a0a0a;
   --popover-foreground: #fafafa;
-  --primary: #38bdf8;
-  --primary-foreground: #0c4a6e;
+  /* Lifted from #fa7604 so primary buttons/icons still read against
+   * the dark background (white on #fa7604 is borderline; on #ff8a33
+   * contrast is solid). Hue is preserved so light/dark themes feel
+   * like the same brand. */
+  --primary: #ff8a33;
+  --primary-foreground: #1a1208;
   --secondary: #1e293b;
   --secondary-foreground: #fafafa;
   --muted: #1e293b;
@@ -71,7 +75,7 @@
   --destructive-foreground: #fafafa;
   --border: #1e293b;
   --input: #1e293b;
-  --ring: #38bdf8;
+  --ring: #ff8a33;
 }
 
 @layer base {

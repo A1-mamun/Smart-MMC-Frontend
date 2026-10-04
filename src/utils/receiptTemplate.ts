@@ -316,15 +316,15 @@ export const renderReceiptHTML = (props: TemplateProps): string => {
               </tr>
               <tr style="border-top:1px solid #d4d4d4;">
                 <td style="padding:6px 12px;">Previously Paid</td>
-                <td style="padding:6px 12px;text-align:right;">${money(previous)}</td>
+                <td style="padding:6px 12px;text-align:right;">${balance === 0 ? "---" : money(previous)}</td>
               </tr>
               <tr style="border-top:1px solid #d4d4d4;">
                 <td style="padding:6px 12px;">Paid Today</td>
-                <td style="padding:6px 12px;text-align:right;">${money(amount)}</td>
+                <td style="padding:6px 12px;text-align:right;">${balance === 0 ? "---" : money(amount)}</td>
               </tr>
               <tr style="border-top:1px solid #d4d4d4;font-weight:600;">
                 <td style="padding:6px 12px;">Total Paid</td>
-                <td style="padding:6px 12px;text-align:right;">${money(totalPaidRunning)}</td>
+                <td style="padding:6px 12px;text-align:right;">${balance === 0 ? "---" : money(totalPaidRunning)}</td>
               </tr>
               <tr style="border-top:1px solid #4b5563;background:rgba(245,245,245,0.7);font-weight:600;">
                 <td style="padding:6px 12px;">Balance Due</td>
@@ -343,7 +343,7 @@ export const renderReceiptHTML = (props: TemplateProps): string => {
               : ""
           }
           <span style="position:relative;z-index:1;font-weight:600;">Amount Paid</span>
-          <span style="position:relative;z-index:1;font-weight:600;font-size:16px;">${money(amount)}</span>
+          <span style="position:relative;z-index:1;font-weight:600;font-size:16px;">${balance === 0 ? "---" : money(amount)}</span>
         </div>`;
 
   return `
@@ -433,7 +433,7 @@ export const renderReceiptHTML = (props: TemplateProps): string => {
         <tr>
           <td style="padding:4px 12px 4px 0;vertical-align:top;width:50%;">
             <p style="font-size:10px;color:#525252;text-transform:uppercase;letter-spacing:0.05em;margin:0;">Amount Paid</p>
-            <p style="font-size:16px;font-weight:700;margin:2px 0 0 0;">${money(amount)}</p>
+            <p style="font-size:16px;font-weight:700;margin:2px 0 0 0;">${balance === 0 ? "---" : money(amount)}</p>
           </td>
           <td style="padding:4px 0;vertical-align:top;width:50%;">
             <p style="font-size:10px;color:#525252;text-transform:uppercase;letter-spacing:0.05em;margin:0;">Payment Method</p>

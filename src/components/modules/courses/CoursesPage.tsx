@@ -14,6 +14,7 @@ import { TCourse } from "@/types/student";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { MultiSelect } from "@/components/ui/multiselect";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -182,6 +183,10 @@ const CoursesPage = () => {
   const [editing, setEditing] = useState<TCourse | null>(null);
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"active" | "inactive">("active");
+  // Custom confirmation modal — replaces the blocking `window.confirm()`
+  // for destructive row actions so the warning matches the dashboard's
+  // design tokens and stays keyboard-accessible.
+  const { confirm: confirmAction, dialog: confirmDialog } = useConfirmDialog();
 
   const allCourses = data?.data || [];
   const activeCourses = allCourses.filter((c) => c.isActive);
@@ -285,10 +290,18 @@ const CoursesPage = () => {
     setOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this course?")) return;
+  const handleDelete = async (course: TCourse) => {
+    const ok = await confirmAction({
+      title: "Delete this course?",
+      description:
+        "The course will be removed from the catalog. Existing enrollments are kept on student records but the course can no longer be reopened.",
+      detail: course.name,
+      confirmLabel: "Delete",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
-      await deleteCourse(id).unwrap();
+      await deleteCourse(course.id).unwrap();
       toast.success("Course deleted");
       refetch();
     } catch (err: any) {
@@ -748,7 +761,7 @@ const CoursesPage = () => {
                       <Button
                         variant="destructive"
                         size="sm"
-                        onClick={() => handleDelete(course.id)}
+                        onClick={() => handleDelete(course)}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -760,6 +773,7 @@ const CoursesPage = () => {
           </div>
         </TabsContent>
       </Tabs>
+      {confirmDialog}
     </div>
   );
 };

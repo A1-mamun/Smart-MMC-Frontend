@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Circle,
   Edit,
+  Eye,
   Loader2,
   Plus,
   Power,
@@ -24,6 +25,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -54,6 +56,9 @@ import {
   useUpdateSubjectMutation,
   useUpdateTopicMutation,
 } from "@/redux/features/freeClass/freeClassApi";
+import { useAppSelector } from "@/redux/hooks";
+import { useCurrentUser } from "@/redux/features/auth/authSlice";
+import FreeClassViewer from "../FreeClassViewer";
 import CreateFreeClassModal from "./CreateFreeClassModal";
 import type {
   TFreeAdminChapter,
@@ -78,6 +83,7 @@ import type {
  */
 
 const FreeClassAdminPage = () => {
+  const user = useAppSelector(useCurrentUser);
   const { data, isLoading, refetch } = useGetAdminSubjectsQuery();
   // Manual trigger for the admin preview iframe. The PreviewModal
   // child component also calls useLazyPreviewTopicQuery to render
@@ -135,6 +141,10 @@ const FreeClassAdminPage = () => {
     title: string;
   } | null>(null);
 
+  // "Student View" overlay — lets admins (non-students) preview exactly
+  // what a student sees on /free-classes without leaving the dashboard.
+  const [studentViewOpen, setStudentViewOpen] = useState(false);
+
   // Simplified "New Free Class" modal — primary CTA. Replaces the
   // previous 3-step subject → chapter → topic flow with a single form.
   const [createFreeClassOpen, setCreateFreeClassOpen] = useState(false);
@@ -144,15 +154,23 @@ const FreeClassAdminPage = () => {
   const [subjectPickerForChapterOpen, setSubjectPickerForChapterOpen] =
     useState(false);
 
+  // Custom confirmation modal — replaces the blocking `window.confirm()`
+  // for the per-row delete actions (subject / chapter / topic) so the
+  // warning matches the dashboard's design tokens and stays keyboard-
+  // accessible.
+  const { confirm: confirmAction, dialog: confirmDialog } = useConfirmDialog();
+
   // ─── Subject handlers ────────────────────────────────────────────────
   const handleDeleteSubject = async (id: string, name: string) => {
-    if (
-      !confirm(
-        `Delete subject "${name}"? This also deletes every chapter + topic under it.`,
-      )
-    ) {
-      return;
-    }
+    const ok = await confirmAction({
+      title: `Delete subject "${name}"?`,
+      description:
+        "This also deletes every chapter + topic under it. Students who have already watched these videos will keep their watch history, but new enrollments won't be possible.",
+      detail: "Subject + chapters + topics",
+      confirmLabel: "Delete subject",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       await deleteSubject(id).unwrap();
       toast.success("Subject deleted");
@@ -179,9 +197,14 @@ const FreeClassAdminPage = () => {
 
   // ─── Chapter handlers ───────────────────────────────────────────────
   const handleDeleteChapter = async (id: string, title: string) => {
-    if (!confirm(`Delete chapter "${title}"? This also deletes its topics.`)) {
-      return;
-    }
+    const ok = await confirmAction({
+      title: `Delete chapter "${title}"?`,
+      description: "This also deletes every topic under it. Watch history on those topics is preserved but the videos themselves are removed.",
+      detail: "Chapter + topics",
+      confirmLabel: "Delete chapter",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       await deleteChapter(id).unwrap();
       toast.success("Chapter deleted");
@@ -210,7 +233,14 @@ const FreeClassAdminPage = () => {
 
   // ─── Topic handlers ─────────────────────────────────────────────────
   const handleDeleteTopic = async (id: string, title: string) => {
-    if (!confirm(`Delete topic "${title}"?`)) return;
+    const ok = await confirmAction({
+      title: `Delete topic "${title}"?`,
+      description: "The video and its watch history are removed from the topic. Students who already viewed it won't be recharged.",
+      detail: "Topic video",
+      confirmLabel: "Delete topic",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       await deleteTopic(id).unwrap();
       toast.success("Topic deleted");
@@ -262,6 +292,22 @@ const FreeClassAdminPage = () => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* "Student View" — only shown to admins (non-students). Lets
+              the admin see exactly what a student sees on /free-classes
+              without leaving the dashboard. Hidden completely for students
+              because they ARE the student view. */}
+          {user?.role !== "STUDENT" && (
+            <Button
+              variant="outline"
+              size="lg"
+              className="gap-2"
+              onClick={() => setStudentViewOpen(true)}
+              title="Preview the student-facing free classes page"
+            >
+              <Eye className="h-4 w-4" />
+              Student View
+            </Button>
+          )}
           <Button
             onClick={() => setCreateFreeClassOpen(true)}
             size="lg"
@@ -439,6 +485,39 @@ const FreeClassAdminPage = () => {
         />
       )}
 
+      {/* Student-view overlay — renders the same FreeClassViewer the
+          public /free-classes route uses. Modal state only; the dialog
+          itself doesn't remount the underlying admin page data fetch. */}
+      <Dialog
+        open={studentViewOpen}
+        onOpenChange={(v) => {
+          if (!v) setStudentViewOpen(false);
+        }}
+      >
+        <DialogContent className="max-w-6xl w-[95vw] h-[85vh] max-h-[85vh] gap-0 overflow-hidden p-0 flex flex-col">
+          <DialogHeader className="border-b bg-muted/40 px-5 py-2.5 shrink-0">
+            <div className="flex items-center justify-between gap-3">
+              <DialogTitle className="flex items-center gap-2 text-base">
+                <Eye className="h-4 w-4 text-primary" />
+                Student View — Free Classes
+              </DialogTitle>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setStudentViewOpen(false)}
+                aria-label="Close student view"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto bg-background p-4">
+            <FreeClassViewer />
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <CreateFreeClassModal
         open={createFreeClassOpen}
         onClose={() => setCreateFreeClassOpen(false)}
@@ -481,6 +560,7 @@ const FreeClassAdminPage = () => {
           </DialogContent>
         </Dialog>
       )}
+      {confirmDialog}
     </div>
   );
 };

@@ -15,8 +15,12 @@ const poppins = Poppins({
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Smart MMC | Attendance & Student Management",
+  title: "MEHEDI MATH | Attendance & Student Management",
   description: "Smart Attendance and Student Management System",
+  icons: {
+    icon: [{ url: "/favicon.png", type: "image/png" }],
+    apple: "/favicon.png",
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

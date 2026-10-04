@@ -61,9 +61,18 @@ const Students = ({
   const [search, setSearch] = useState(query.searchTerm || "");
   const [payingStudent, setPayingStudent] = useState<TStudent | null>(null);
   // Drives the full-page receipt overlay shown right after a successful payment.
+  // We carry the computed status / fee / previouslyPaid alongside the payment
+  // so the receipt renders with the CORRECT post-payment state instead of the
+  // stale `payingStudent.paymentStatus` snapshot (which still says PENDING at
+  // this moment because the post-mutation refetch hasn't landed yet).
   const [recordedPayment, setRecordedPayment] = useState<TPaymentRecord | null>(
     null,
   );
+  const [receiptMath, setReceiptMath] = useState<{
+    paymentStatus: "PAID" | "PARTIAL" | "PENDING";
+    fee: number | undefined;
+    previouslyPaid: number | undefined;
+  } | null>(null);
   // When the user clicks the per-row MessageSquare action we open the SMS
   // composer in a Dialog, pre-filled with that single recipient. They can
   // still type any number of additional recipients before sending.
@@ -544,6 +553,8 @@ const Students = ({
           onRecorded={(p, overrideStatus) => {
             setRecordedPayment(p);
 
+            if (!payingStudent) return;
+
             // Auto-print the receipt right after a successful record.
             // Same per-payment-math derivation as the student-panel
             // handleRowPrint (see StudentPayments.tsx): status / fee /
@@ -594,6 +605,15 @@ const Students = ({
                 ? overrideStatus
                 : derivedStatus;
 
+            // Stash the math so the on-screen PaymentReceiptView below
+            // can use it too — the receipt renders before the post-
+            // mutation refetch lands, so `payingStudent.paymentStatus`
+            // (the StudentCourse snapshot) is still stale at this
+            // moment. Computing it once here and forwarding into both
+            // the auto-print and the on-screen receipt keeps them in
+            // agreement.
+            setReceiptMath({ paymentStatus, fee, previouslyPaid });
+
             const batchLabel = (payingStudent.batches ?? [])
               .map((b) => `HSC ${String(b.hscBatch).replace(/^BATCH_/, "")}`)
               .join(", ");
@@ -629,7 +649,14 @@ const Students = ({
               .map((b) => `HSC ${String(b.hscBatch).replace(/^BATCH_/, "")}`)
               .join(", ") || undefined
           }
-          paymentStatus={payingStudent.paymentStatus}
+          // Use the math computed in onRecorded rather than the stale
+          // `payingStudent.paymentStatus` snapshot. The receipt also
+          // self-reconciles from fee + previouslyPaid + amount, so even
+          // if `receiptMath` is null (older code path) the right status
+          // is derived.
+          paymentStatus={receiptMath?.paymentStatus}
+          fee={receiptMath?.fee}
+          previouslyPaid={receiptMath?.previouslyPaid}
           courseName={
             payingStudent.studentCourses?.find(
               (sc) => sc.id === recordedPayment.studentCourseId,
@@ -637,7 +664,10 @@ const Students = ({
           }
           collectedByName={currentUser?.name}
           collectedByRole={currentUser?.role}
-          onBack={() => setRecordedPayment(null)}
+          onBack={() => {
+            setRecordedPayment(null);
+            setReceiptMath(null);
+          }}
         />
       )}
 

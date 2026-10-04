@@ -84,14 +84,59 @@ const PaymentReceipt = ({
   // (across this enrollment) plus the amount being recorded right now.
   const totalPaidRunning = previous + amount;
   /*
+   * Status reconciliation.
+   *
+   * The `paymentStatus` prop is sourced from the caller's cached student
+   * profile — typically `StudentCourse.status` snapshotted by the list
+   * endpoint. That snapshot can be STALE relative to the receipt: when
+   * the caller records a new payment via the modal, the receipt renders
+   * BEFORE the post-mutation refetch lands, so the prop still says
+   * PENDING/PARTIAL even though the just-recorded payment made the
+   * enrollment fully settled.
+   *
+   * To avoid the confusing "this receipt says PENDING but the math adds
+   * up to PAID" state, we recompute the status from the math whenever
+   * the caller supplied a `fee` (the only inputs we trust the
+   * reconciliation on). The caller's `paymentStatus` is treated as the
+   * authoritative truth only when no `fee` is available — that's the
+   * legacy / fallback receipt shape where we don't have enough
+   * information to derive it ourselves.
+   *
+   * Manual overrides (admin accepted a partial payment as full) are
+   * forwarded through the prop as PAID, which the reconciliation
+   * correctly accepts as the floor — see the >= check below.
+   */
+  const reconciledStatus: NonNullable<Props["paymentStatus"]> =
+    fee !== undefined && fee !== null
+      ? totalPaidRunning >= totalFee
+        ? "PAID"
+        : totalPaidRunning > 0
+          ? "PARTIAL"
+          : "PENDING"
+      : (paymentStatus ?? "PENDING");
+  // Honour an explicit admin PAID override even when the math wouldn't
+  // reach PAID — e.g. staff wrote off a partial balance. This matches the
+  // backend's record-payment override path: an explicit PAID means the
+  // enrollment is settled for accounting purposes regardless of the
+  // math.
+  const effectiveStatus: NonNullable<Props["paymentStatus"]> =
+    reconciledStatus === "PAID" || paymentStatus === "PAID"
+      ? "PAID"
+      : reconciledStatus;
+  // When the enrollment is fully settled, the per-payment "Amount Paid" /
+  // "Paid Today" lines are redundant — the running total already shows
+  // the settled amount and the PAID seal + 0 balance make it obvious the
+  // enrollment is closed. Hide them so the receipt isn't cluttered with
+  // numbers that say the same thing twice.
+  const isFullyPaid = effectiveStatus === "PAID";
+  /*
    * Balance Due shown on the receipt. When the enrollment is marked
    * PAID — including via a manual override where staff accepted a
    * partial payment as full — we honor that and show 0. The rest of
    * the receipt still surfaces the actual amounts so the math is
    * transparent.
    */
-  const balance =
-    paymentStatus === "PAID" ? 0 : Math.max(0, totalFee - totalPaidRunning);
+  const balance = isFullyPaid ? 0 : Math.max(0, totalFee - totalPaidRunning);
 
   // A short, human-readable slice of the payment id so the receipt can be
   // cross-referenced with the database without exposing the full UUID.
@@ -176,23 +221,28 @@ const PaymentReceipt = ({
             Payment Status
           </p>
           <div className="pt-0.5">
-            {paymentStatus ? (
-              <StatusBadge status={paymentStatus} />
-            ) : (
-              <span className="text-neutral-500">—</span>
-            )}
+            {/* Render the reconciled status (math + override floor) rather
+                than the raw `paymentStatus` prop. The prop can be stale
+                relative to the just-recorded payment; `effectiveStatus`
+                reflects the actual settlement state of this receipt. */}
+            <StatusBadge status={effectiveStatus} />
           </div>
         </div>
       </div>
 
       <Separator className="my-3 bg-black/40" />
 
-      {/* Payment details — every input the staff member entered */}
+      {/* Payment details — every input the staff member entered. When the
+          enrollment is fully settled we keep the "Amount Paid" label
+          visible but mask the value with "--" (same rule as the
+          breakdown's "Previously Paid" / "Paid Today" rows) so the
+          receipt doesn't restate the per-payment numbers on a closed
+          enrollment. */}
       <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
         <div>
           <p className="text-[10px] uppercase text-neutral-600">Amount Paid</p>
           <p className="font-semibold text-base">
-            <Money value={amount} />
+            {isFullyPaid ? "---" : <Money value={amount} />}
           </p>
         </div>
         <div>
@@ -279,20 +329,32 @@ const PaymentReceipt = ({
             </div>
             <div className="grid grid-cols-2 px-3 py-1.5 border-t border-black/20">
               <span>Previously Paid</span>
+              {/* When the enrollment is fully settled we keep the row
+                  label visible (so the receipt still reads as a
+                  breakdown) but mask the amount with "--". The PAID
+                  seal + 0 balance + Total Paid row already convey the
+                  settlement, so the individual payment amounts add no
+                  signal — only noise — once the enrollment is closed. */}
               <span className="text-right">
-                <Money value={previous} />
+                {isFullyPaid ? "---" : <Money value={previous} />}
               </span>
             </div>
+            {/* "Paid Today" — same masking rule as Previously Paid. The
+                label is kept so the breakdown still reads naturally,
+                but the amount is masked with "--" on a fully-paid
+                receipt. (The earlier implementation hid the entire row;
+                we now keep it visible with a masked amount per the
+                product request.) */}
             <div className="grid grid-cols-2 px-3 py-1.5 border-t border-black/20">
               <span>Paid Today</span>
               <span className="text-right">
-                <Money value={amount} />
+                {isFullyPaid ? "---" : <Money value={amount} />}
               </span>
             </div>
             <div className="grid grid-cols-2 px-3 py-1.5 border-t border-black/20 font-semibold">
               <span>Total Paid</span>
               <span className="text-right">
-                <Money value={totalPaidRunning} />
+                {isFullyPaid ? "---" : <Money value={totalPaidRunning} />}
               </span>
             </div>
             <div className="grid grid-cols-2 px-3 py-1.5 border-t border-black/40 bg-neutral-100/70 font-semibold">
@@ -304,6 +366,10 @@ const PaymentReceipt = ({
           </div>
         </div>
       ) : (
+        // No fee on file — render a one-line "Amount Paid" receipt. Same
+        // hide rule as the breakdown above: when fully settled, the PAID
+        // seal alone is enough; showing "Amount Paid" again would restate
+        // what the seal + balance already imply.
         <div className="relative border border-black/40 rounded-sm px-3 py-3 flex items-center justify-between text-sm">
           {balance === 0 && (
             <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-visible">
@@ -319,10 +385,14 @@ const PaymentReceipt = ({
               </div>
             </div>
           )}
-          <span className="relative z-10 font-medium">Amount Paid</span>
-          <span className="relative z-10 font-semibold text-base">
-            <Money value={amount} />
-          </span>
+          {/* No fee on file — single-row fallback. Mask the amount the same
+              way as the breakdown when fully settled. */}
+          <>
+            <span className="relative z-10 font-medium">Amount Paid</span>
+            <span className="relative z-10 font-semibold text-base">
+              {isFullyPaid ? "--" : <Money value={amount} />}
+            </span>
+          </>
         </div>
       )}
 

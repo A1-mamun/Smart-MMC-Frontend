@@ -121,7 +121,12 @@ const ManualCheckInPage = () => {
       todayData.data.map((a) => ({
         studentId: a.student.id,
         name: a.student.user.name,
-        studentCode: a.student.user.studentId,
+        // Mobile replaces the dropped `User.studentId` for the
+        // per-account identifier; per-attendance under
+        // `studentCourseId` is shown in the per-attendance UI when
+        // the backend exposes it (not in /today — that's why we
+        // surface mobile here).
+        studentCode: a.student.user.mobile,
         dueAmount: 0, // not exposed in /today; UI shows "—" for backfill
         courseNames: [],
         isFirstCheckIn: false,
@@ -517,7 +522,10 @@ const ManualCheckInPage = () => {
               <div>
                 <p className="font-semibold">{student.user.name}</p>
                 <p className="text-sm text-muted-foreground font-mono">
-                  {student.user.studentId} • {student.mobile}
+                  {/* Mobile is the per-account identifier now; the
+                      duplicate was a vestige of the dropped
+                      `User.studentId`. */}
+                  {student.user.mobile}
                 </p>
               </div>
               <div className="flex gap-2">

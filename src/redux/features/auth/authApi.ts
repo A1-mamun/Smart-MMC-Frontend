@@ -9,8 +9,10 @@ type TResetPasswordPayload = { token: string; newPassword: string };
 type TLoginData = {
   user: {
     id: string;
-    studentId: string;
-    mobile?: string | null;
+    // Mobile is the canonical identifier now — `studentId` was
+    // dropped from the User model. The frontend can read
+    // `studentCourseId` off the per-enrollment records.
+    mobile: string;
     name: string;
     role: "SUPER_ADMIN" | "ADMIN" | "STUDENT";
     mustChangePassword: boolean;

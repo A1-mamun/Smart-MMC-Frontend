@@ -5,7 +5,10 @@ type TDecoded = {
   userId: string;
   name: string;
   role: TUserRole;
-  studentId: string;
+  // Mobile is the canonical identifier on the auth payload now; the
+  // dropped `User.studentId` was replaced by `mobile` when sign-in
+  // migrated to phone-number-based lookup.
+  mobile: string;
   isFreeAccount?: boolean;
   iat?: number;
   exp?: number;
@@ -16,7 +19,7 @@ export const verifyToken = (token: string): { user: TUser } => {
   return {
     user: {
       id: decoded.userId,
-      studentId: decoded.studentId,
+      mobile: decoded.mobile,
       name: decoded.name,
       role: decoded.role,
       mustChangePassword: false,

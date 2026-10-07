@@ -1889,7 +1889,7 @@ const AdmitStudentForm = () => {
     // eslint-disable-next-line no-console
     console.log("[AdmitStudentForm] submit fired", {
       mode,
-      matchedStudent: matchedStudent?.user?.studentId ?? null,
+      matchedStudent: matchedStudent?.user?.mobile ?? null,
       courseId: data.courseId,
       batchDayId: data.batchDayId,
       batchTime: data.batchTime,
@@ -2226,7 +2226,8 @@ const AdmitStudentForm = () => {
                                     : ""}
                                 </span>
                                 <span className="font-mono text-xs text-muted-foreground">
-                                  {s.user.studentId}
+                                  {/* Mobile is the per-account identifier now */}
+                                  {s.user.mobile}
                                 </span>
                               </div>
                               <div className="flex w-full flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -2259,10 +2260,11 @@ const AdmitStudentForm = () => {
                         : ""}
                     </p>
                     <p className="text-xs text-blue-700 dark:text-blue-300">
-                      Mobile: {matchedStudent.mobile} · Student ID:{" "}
-                      <span className="font-mono">
-                        {matchedStudent.user.studentId}
-                      </span>
+                      Mobile: {matchedStudent.mobile} ·{" "}
+                      {/* Per-enrollment ID (the per-course handle) is
+                          shown in the "Currently enrolled in" list
+                          below — we no longer surface a single
+                          global student ID on the User row. */}
                     </p>
                     {matchedStudent.studentCourses &&
                       matchedStudent.studentCourses.length > 0 && (
@@ -2800,7 +2802,13 @@ const AdmitStudentForm = () => {
         <PaymentReceiptView
           payment={receiptTarget.payment}
           studentName={receiptTarget.student.user.name}
-          studentId={receiptTarget.student.user.studentId}
+          // Per-enrollment ID (StudentCourse.studentCourseId) for
+          // the receipt header. Falls back to the user mobile if
+          // somehow missing.
+          studentId={
+            receiptTarget.student.studentCourses?.[0]?.studentCourseId ??
+            receiptTarget.student.user.mobile
+          }
           studentMobile={receiptTarget.student.mobile}
           studentBatch={(receiptTarget.student.batches ?? [])
             .map((b) => `HSC ${String(b.hscBatch).replace(/^BATCH_/, "")}`)

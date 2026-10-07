@@ -3,19 +3,31 @@ import { getCurrentUser } from "./services/currentUser";
 
 /**
  * Routes that are part of the auth flow itself (visiting them while
- * signed in bounces you to your role's home). The `/free-classes` page
- * is INTENTIONALLY not in this list — anonymous users should be able to
- * land on `/free-classes` and see the signup / sign-in toggle inline.
+ * signed in bounces you to your role's home). The `/free-classes`
+ * landing is INTENTIONALLY not in this list — it handles all three
+ * auth states inline (free user → content, paid user → CTA card,
+ * anonymous → bounced to /free-classes/signin).
+ *
+ * `/free-classes/signin` and `/free-classes/signup` ARE in this list
+ * for already-signed-in free users only — there's nothing for them
+ * to fill in. Paid users (dashboard role) are allowed to land on
+ * these pages so they can sign up a separate free account on their
+ * existing mobile.
  */
-const authRoutes = ["/signin"];
+const authRoutes = ["/signin", "/free-classes/signin", "/free-classes/signup"];
 
 /**
- * Public-by-default routes the proxy must never gate. The /free-classes
- * landing handles its own 3-state UI (signup form for anon, content for
- * signed-in). Add the literal marker `false` to `authRequired` below so the
- * middleware doesn't redirect anonymous visitors to /signin first.
+ * Public-by-default routes the proxy must never gate. The free-class
+ * routes are public so anonymous users can land on them and onboard
+ * themselves — without this list, hitting `/free-classes` while
+ * logged out would bounce the user to `/signin` (the regular
+ * dashboard login), which is the wrong place.
  */
-const publicRoutes = ["/free-classes"];
+const publicRoutes = [
+  "/free-classes",
+  "/free-classes/signin",
+  "/free-classes/signup",
+];
 
 /**
  * Per-role allowlist for protected paths. Free students (mobile-only
@@ -24,8 +36,8 @@ const publicRoutes = ["/free-classes"];
  * login and the content tree, no dashboard chrome required.
  */
 const roleAccess: Record<string, RegExp[]> = {
-  SUPER_ADMIN: [/^\/dashboard/, /^\/free-classes/],
-  ADMIN: [/^\/dashboard/, /^\/free-classes/],
+  SUPER_ADMIN: [/^\/dashboard/, /^\/free-classes/, /^\/free-classes\/.*/],
+  ADMIN: [/^\/dashboard/, /^\/free-classes/, /^\/free-classes\/.*/],
   STUDENT: [
     /^\/dashboard\/student/, /^\/dashboard\/student\/.*/,
     /^\/free-classes/, /^\/free-classes\/.*/,
@@ -57,6 +69,14 @@ export const proxy = async (request: NextRequest) => {
     // Public-by-default routes: anonymous users see the inline signup
     // form instead of being bounced to /signin.
     if (publicRoutes.some((r) => pathname === r || pathname.startsWith(`${r}/`))) {
+      // Anonymous user landing on the free-classes landing → bounce
+      // straight to the dedicated signin page so the user doesn't
+      // see a loading splash + client-side redirect flicker.
+      if (pathname === "/free-classes") {
+        return NextResponse.redirect(
+          new URL("/free-classes/signin", request.url),
+        );
+      }
       return NextResponse.next();
     }
     return NextResponse.redirect(
@@ -65,6 +85,22 @@ export const proxy = async (request: NextRequest) => {
   }
 
   if (authRoutes.includes(pathname)) {
+    // /free-classes/signin and /free-classes/signup only bounce
+    // already-authenticated free users (nothing for them to fill
+    // in — they're already inside their account). Paid students
+    // and admins are allowed to land here so they can sign up a
+    // free account on their existing mobile.
+    if (
+      pathname === "/free-classes/signin" ||
+      pathname === "/free-classes/signup"
+    ) {
+      if (userInfo.isFreeAccount) {
+        return NextResponse.redirect(
+          new URL(roleHome(userInfo), request.url),
+        );
+      }
+      return NextResponse.next();
+    }
     return NextResponse.redirect(new URL(roleHome(userInfo), request.url));
   }
 

@@ -252,7 +252,10 @@ const PaymentsPage = () => {
     return {
       payment,
       studentName: student.user.name,
-      studentId: student.user.studentId,
+      // Per-enrollment ID (StudentCourse.studentCourseId). Falls back
+      // to mobile when the payment row didn't carry a studentCourseId
+      // (the legacy code path).
+      studentId: payment.studentCourseId ?? student.user.mobile,
       studentMobile: student.mobile,
       studentBatch: batchLabel || undefined,
       paymentStatus,
@@ -268,7 +271,11 @@ const PaymentsPage = () => {
   const buildReceiptFromRow = (payment: TPaymentRecord): ReceiptTarget => ({
     payment,
     studentName: payment.student?.user?.name || "—",
-    studentId: payment.student?.user?.studentId || "—",
+    // Per-enrollment ID (StudentCourse.studentCourseId). The legacy
+    // `payment.student?.user?.studentId` was dropped with the User
+    // model — fall back to mobile when the enrollment ID isn't on
+    // the payment row.
+    studentId: payment.studentCourseId ?? payment.student?.user?.mobile ?? "—",
     courseName: payment.studentCourse?.course?.name,
   });
 

@@ -18,7 +18,10 @@ const StudentProfile = () => {
       <div>
         <h2 className="text-2xl font-bold tracking-tight">My Profile</h2>
         <p className="text-sm text-muted-foreground font-mono">
-          {s.user.studentId}
+          {/* Mobile replaces the dropped `User.studentId`; per-enrollment
+              IDs (StudentCourse.studentCourseId) are surfaced in the
+              "My Enrollments" / "Courses" sections below. */}
+          {s.user.mobile}
         </p>
       </div>
 

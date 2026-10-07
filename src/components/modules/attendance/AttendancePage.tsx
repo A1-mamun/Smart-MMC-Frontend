@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import dayjs from "dayjs";
-import { ArrowLeftRight } from "lucide-react";
+import { ArrowLeftRight, ScanLine } from "lucide-react";
 import { useGetTodayAttendanceQuery } from "@/redux/features/attendance/attendance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -37,6 +37,23 @@ const AttendancePage = () => {
   });
   const { data, isLoading, refetch } = useGetTodayAttendanceQuery(filters);
 
+  /**
+   * Opens the automatic-attendance kiosk in a popup window. We use
+   * `window.open` (not a `<Link>` or `router.push`) because the
+   * kiosk is intended to be a separate full-screen surface — no
+   * sidebar, no top tablist, just the scanner UI. `noopener,
+   noreferrer` keeps the new window from accessing `window.opener`
+   * (security hardening for popups).
+   */
+  const openAutomaticAttendance = () => {
+    if (typeof window === "undefined") return;
+    window.open(
+      "/attendance/automatic",
+      "automatic-attendance-kiosk",
+      "noopener,noreferrer,width=1280,height=800",
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -47,7 +64,21 @@ const AttendancePage = () => {
             present
           </p>
         </div>
-        <Button onClick={() => refetch()}>Refresh</Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={openAutomaticAttendance}
+            // The kiosk button is the primary CTA on the attendance
+            // page — placement to the right of the Refresh button
+            // keeps the destructive / data-refresh actions grouped
+            // while the new feature sits at the end of the row.
+            className="gap-2"
+          >
+            <ScanLine className="h-4 w-4" /> Take automatic attendance
+          </Button>
+          <Button variant="outline" onClick={() => refetch()}>
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-3">
@@ -146,7 +177,9 @@ const AttendancePage = () => {
                         {a.student.user.name}
                       </TableCell>
                       <TableCell className="font-mono text-xs">
-                        {a.student.user.studentId}
+                        {/* Mobile replaces the dropped `User.studentId`
+                            for the per-account identifier. */}
+                        {a.student.user.mobile}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">

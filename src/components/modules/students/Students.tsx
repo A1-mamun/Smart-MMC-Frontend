@@ -20,7 +20,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { TStudent, TStudentQuery, TCourseBatchDay } from "@/types/student";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { TStudent, TStudentQuery, TCourseBatchDay, TCourseStatus } from "@/types/student";
 import { TPaginationMeta } from "@/types/common";
 import {
   useGetCourseByIdQuery,
@@ -72,6 +74,10 @@ const Students = ({
     paymentStatus: "PAID" | "PARTIAL" | "PENDING";
     fee: number | undefined;
     previouslyPaid: number | undefined;
+    // Per-enrollment printable ID (StudentCourse.studentCourseId) —
+    // the receipt header reads this so the same number shows on both
+    // the auto-print and the on-screen modal.
+    studentCourseId: string | undefined;
   } | null>(null);
   // When the user clicks the per-row MessageSquare action we open the SMS
   // composer in a Dialog, pre-filled with that single recipient. They can
@@ -152,6 +158,8 @@ const Students = ({
       batchTime: undefined,
       // Reset to the page default (active-courses-only = true).
       activeCoursesOnly: true,
+      // Reset the course-status tab to its default (ONGOING).
+      courseStatus: "ONGOING",
       // Reset to the page-default sort so "Clear all" puts the user back
       // to the "Newest first" view they started with.
       sortBy: "createdAt",
@@ -161,15 +169,20 @@ const Students = ({
   };
 
   // Flags anything that diverges from the page's default state — search,
-  // cascading course filters, the active-courses toggle, or a non-default
-  // sort. `limit` is intentionally NOT included: it's a view preference,
-  // not a filter, so resizing the table shouldn't make "Clear all" appear.
+  // cascading course filters, the active-courses toggle, the course-
+  // status tabs, or a non-default sort. `limit` is intentionally NOT
+  // included: it's a view preference, not a filter, so resizing the
+  // table shouldn't make "Clear all" appear.
   const hasActiveFilter =
     !!search ||
     !!courseId ||
     !!batchDayId ||
     !!batchTime ||
     query.activeCoursesOnly !== true ||
+    // The course-status tabs are a real filter; diverge from the
+    // default ("ONGOING") so a non-default tab keeps the "Clear
+    // all" affordance visible.
+    query.courseStatus !== "ONGOING" ||
     query.sortBy !== "createdAt" ||
     query.sortOrder !== "desc";
 
@@ -231,6 +244,51 @@ const Students = ({
           </Link>
         </Button>
       </div>
+
+      {/*
+        Course-status tabs — mirrors the Courses page so an admin
+        reading the students list thinks in the same lifecycle
+        vocabulary. Default is ONGOING (the operationally relevant
+        cohort). The active tab is color-coded to match the courses
+        tabs (blue / amber / emerald) so the current cohort is
+        unmistakable at a glance.
+      */}
+      <Tabs
+        value={query.courseStatus ?? "ONGOING"}
+        onValueChange={(v) =>
+          onQueryChange({ ...query, courseStatus: v as TCourseStatus, page: 1 })
+        }
+      >
+        <TabsList>
+          <TabsTrigger
+            value="ADMISSION"
+            className="data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:border-blue-600"
+          >
+            Admission
+            <Badge variant="secondary" className="ml-2 bg-blue-100 text-blue-800">
+              {meta && query.courseStatus === "ADMISSION" ? meta.total : ""}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger
+            value="ONGOING"
+            className="data-[state=active]:bg-amber-500 data-[state=active]:text-white data-[state=active]:border-amber-600"
+          >
+            Ongoing
+            <Badge variant="secondary" className="ml-2 bg-amber-100 text-amber-800">
+              {meta && query.courseStatus === "ONGOING" ? meta.total : ""}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger
+            value="COMPLETE"
+            className="data-[state=active]:bg-emerald-500 data-[state=active]:text-white data-[state=active]:border-emerald-600"
+          >
+            Completed
+            <Badge variant="secondary" className="ml-2 bg-emerald-100 text-emerald-800">
+              {meta && query.courseStatus === "COMPLETE" ? meta.total : ""}
+            </Badge>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       <div className="space-y-3">
         <div className="relative">
@@ -459,6 +517,12 @@ const Students = ({
         students={studentsData}
         isLoading={isLoading}
         isFetching={isFetching}
+        // Pass the active course-status tab so the table can scope
+        // every per-enrollment column to the matching cohort (e.g.
+        // a student admitted to two courses across different stages
+        // will only show the ADMISSION-course info on the ADMISSION
+        // tab, only the ONGOING-course info on the ONGOING tab, etc.).
+        courseStatus={query.courseStatus}
         onView={(s) => router.push(`/dashboard/students/${s.id}`)}
         onEdit={(s) => router.push(`/dashboard/students/${s.id}/edit`)}
         onPay={(s) => setPayingStudent(s)}
@@ -612,7 +676,15 @@ const Students = ({
             // moment. Computing it once here and forwarding into both
             // the auto-print and the on-screen receipt keeps them in
             // agreement.
-            setReceiptMath({ paymentStatus, fee, previouslyPaid });
+            setReceiptMath({
+              paymentStatus,
+              fee,
+              previouslyPaid,
+              // The just-recorded payment's enrollment row carries
+              // the per-enrollment ID; pass it through so the receipt
+              // header shows the same number as the auto-print.
+              studentCourseId: p.studentCourseId ?? undefined,
+            });
 
             const batchLabel = (payingStudent.batches ?? [])
               .map((b) => `HSC ${String(b.hscBatch).replace(/^BATCH_/, "")}`)
@@ -621,7 +693,11 @@ const Students = ({
             printPaymentReceipt({
               payment: p,
               studentName: payingStudent.user.name,
-              studentId: payingStudent.user.studentId,
+              // Per-enrollment ID (`StudentCourse.studentCourseId`) —
+              // the dropped `User.studentId` has been replaced with
+              // mobile for the per-account identifier, but the
+              // printable handle on receipts is the `studentCourseId`.
+              studentId: receiptMath?.studentCourseId ?? "—",
               studentMobile: payingStudent.mobile,
               studentBatch: batchLabel || undefined,
               paymentStatus,
@@ -642,7 +718,11 @@ const Students = ({
         <PaymentReceiptView
           payment={recordedPayment}
           studentName={payingStudent.user.name}
-          studentId={payingStudent.user.studentId}
+          // Per-enrollment ID (the receipt header). When the
+          // recording flow has computed this for the auto-print, use
+          // it; otherwise fall back to the user's mobile so the
+          // receipt is never blank.
+          studentId={receiptMath?.studentCourseId ?? payingStudent.user.mobile}
           studentMobile={payingStudent.mobile}
           studentBatch={
             (payingStudent.batches ?? [])

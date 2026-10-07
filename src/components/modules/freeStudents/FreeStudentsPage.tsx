@@ -5,6 +5,13 @@ import { Search, X as ClearIcon, Gift } from "lucide-react";
 import { useGetAllStudentsQuery } from "@/redux/features/student/student";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import StudentsTable from "@/components/modules/students/StudentsTable";
 import type { TStudentQuery } from "@/types/student";
 
@@ -39,6 +46,84 @@ const SEARCH_DEBOUNCE_MS = 350;
  * Removing the filter (or flipping it to `false`) would either show
  * the entire student base or silently include paid customers; do not.
  */
+
+type PaginationProps = {
+  page: number;
+  limit: number;
+  total: number;
+  onPageChange: (page: number) => void;
+  onLimitChange: (limit: number) => void;
+};
+
+/**
+ * Pagination footer matching the paid `/dashboard/students` surface:
+ * rows-per-page selector on the left, then a Previous / "Page X of Y" /
+ * Next cluster on the right. The "Page X of Y" indicator is hidden
+ * when there's only one page so a single-page roster doesn't carry
+ * redundant noise — the page-size selector stays visible either way so
+ * admins can resize without first paginating elsewhere.
+ */
+const Pagination = ({
+  page,
+  limit,
+  total,
+  onPageChange,
+  onLimitChange,
+}: PaginationProps) => {
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  return (
+    <div className="flex items-center justify-between gap-2">
+      {/* Page-size selector. Always visible (even on a single page) so
+          the admin can shrink or grow the view without having to first
+          paginate elsewhere. The page count below is the only thing
+          gated on `total > limit` — when there's only one page, the
+          "Page X of Y" indicator is redundant noise. */}
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <span>Rows per page</span>
+        <Select
+          value={String(limit)}
+          onValueChange={(v) => onLimitChange(Number(v))}
+        >
+          <SelectTrigger className="h-8 w-20">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {[10, 20, 50, 100].map((n) => (
+              <SelectItem key={n} value={String(n)}>
+                {n}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {total > limit && (
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page <= 1}
+            onClick={() => onPageChange(page - 1)}
+          >
+            Previous
+          </Button>
+          <span className="text-sm">
+            Page {page} of {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page * limit >= total}
+            onClick={() => onPageChange(page + 1)}
+          >
+            Next
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const FreeStudentsPage = () => {
   const router = useRouter();
   const [query, setQuery] = useState<TStudentQuery>({
@@ -141,32 +226,14 @@ const FreeStudentsPage = () => {
         // omitted, so omitting them is enough.
       />
 
-      {meta && meta.total > meta.limit && (
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={meta.page <= 1}
-            onClick={() =>
-              setQuery({ ...query, page: (meta.page || 1) - 1 })
-            }
-          >
-            Previous
-          </Button>
-          <span className="text-sm">
-            Page {meta.page} of {Math.ceil(meta.total / meta.limit)}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={meta.page * meta.limit >= meta.total}
-            onClick={() =>
-              setQuery({ ...query, page: (meta.page || 1) + 1 })
-            }
-          >
-            Next
-          </Button>
-        </div>
+      {meta && (
+        <Pagination
+          page={meta.page || 1}
+          limit={meta.limit}
+          total={meta.total}
+          onPageChange={(p) => setQuery({ ...query, page: p })}
+          onLimitChange={(l) => setQuery({ ...query, limit: l, page: 1 })}
+        />
       )}
     </div>
   );

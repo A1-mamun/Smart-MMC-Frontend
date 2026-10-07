@@ -59,6 +59,10 @@ const StudentDetailPage = ({ params }: Props) => {
     paymentStatus: "PAID" | "PARTIAL" | "PENDING";
     fee: number | undefined;
     previouslyPaid: number | undefined;
+    // Per-enrollment printable ID (StudentCourse.studentCourseId) —
+    // the receipt header reads this so the same number shows on both
+    // the auto-print and the on-screen modal.
+    studentCourseId: string | undefined;
   } | null>(null);
   const currentUser = useAppSelector(useCurrentUser);
 
@@ -84,7 +88,7 @@ const StudentDetailPage = ({ params }: Props) => {
       title: "Soft-delete this student?",
       description:
         "The student will be marked as deleted and removed from active rosters. This can be reversed by an admin.",
-      detail: `${student.user.name} · ${student.user.studentId}`,
+      detail: `${student.user.name} · ${student.user.mobile}`,
       confirmLabel: "Delete",
       variant: "danger",
     });
@@ -107,7 +111,13 @@ const StudentDetailPage = ({ params }: Props) => {
           </Button>
           <div>
             <h2 className="text-2xl font-bold tracking-tight">{student.user.name}</h2>
-            <p className="text-sm text-muted-foreground font-mono">{student.user.studentId}</p>
+            <p className="text-sm text-muted-foreground font-mono">
+              {/* Mobile replaces the dropped `User.studentId` as the
+                  per-account identifier. The per-enrollment ID
+                  (`StudentCourse.studentCourseId`) is shown in the
+                  Courses & Batches card below. */}
+              {student.user.mobile}
+            </p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -360,7 +370,15 @@ const StudentDetailPage = ({ params }: Props) => {
                 : derivedStatus;
 
             setRecordedPayment(p);
-            setReceiptMath({ paymentStatus, fee, previouslyPaid });
+            setReceiptMath({
+              paymentStatus,
+              fee,
+              previouslyPaid,
+              // The just-recorded payment's enrollment row carries
+              // the per-enrollment ID; pass it through so the receipt
+              // header shows the same number as the auto-print.
+              studentCourseId: p.studentCourseId ?? undefined,
+            });
           }}
       />
 
@@ -368,7 +386,9 @@ const StudentDetailPage = ({ params }: Props) => {
         <PaymentReceiptView
           payment={recordedPayment}
           studentName={student.user.name}
-          studentId={student.user.studentId}
+          // Per-enrollment ID from the recorded-payment math; falls
+          // back to the user mobile if not yet computed.
+          studentId={receiptMath?.studentCourseId ?? student.user.mobile}
           studentMobile={student.mobile}
           studentBatch={(student.batches ?? [])
             .map((b) => `HSC ${String(b.hscBatch).replace(/^BATCH_/, "")}`)

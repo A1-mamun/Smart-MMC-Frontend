@@ -30,8 +30,24 @@ type FreeClassViewerProps = {
  * so prev/next are O(1) without re-iterating the tree.
  */
 const FreeClassViewer = ({ welcomeName }: FreeClassViewerProps) => {
-  const { data, isLoading, isError } = useGetFreeContentQuery();
+  const { data, isLoading, isError, refetch } = useGetFreeContentQuery();
   const subjects = useMemo<TFreeSubject[]>(() => data?.data ?? [], [data?.data]);
+
+  // Defensive timeout: if the content API hasn't returned within
+  // 8 s we stop showing the spinner and let the user retry. RTK
+  // Query does not surface a built-in timeout, so a hung request
+  // (e.g. backend cold-start, network blip) would otherwise leave
+  // a Loader2 on screen forever — the symptom users reported as
+  // "loading spinner all the time".
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    if (!isLoading) {
+      setTimedOut(false);
+      return;
+    }
+    const t = window.setTimeout(() => setTimedOut(true), 8_000);
+    return () => window.clearTimeout(t);
+  }, [isLoading]);
 
   // Flat list of every topic in playback order.
   const flat = useMemo(() => flattenFreeTopics(subjects), [subjects]);
@@ -110,7 +126,7 @@ const FreeClassViewer = ({ welcomeName }: FreeClassViewerProps) => {
     return () => window.removeEventListener("keydown", onKey);
   }, [activeIndex, flat.length]);
 
-  if (isLoading) {
+  if (isLoading && !timedOut) {
     return (
       <div className="flex min-h-[400px] items-center justify-center py-16">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -118,15 +134,26 @@ const FreeClassViewer = ({ welcomeName }: FreeClassViewerProps) => {
     );
   }
 
-  if (isError || subjects.length === 0) {
+  if (timedOut || isError || subjects.length === 0) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center gap-3 py-12 text-center text-sm text-muted-foreground">
           <Tv className="h-8 w-8 text-primary/60" />
           <p>
-            No free classes available right now. Check back soon — we're
-            uploading new chapters every week.
+            {timedOut
+              ? "Still loading… the server is taking longer than expected."
+              : "No free classes available right now. Check back soon — we're uploading new chapters every week."}
           </p>
+          <button
+            type="button"
+            onClick={() => {
+              setTimedOut(false);
+              refetch();
+            }}
+            className="mt-2 inline-flex h-8 items-center justify-center rounded-md border bg-background px-3 text-xs font-medium text-foreground hover:bg-muted"
+          >
+            Try again
+          </button>
         </CardContent>
       </Card>
     );

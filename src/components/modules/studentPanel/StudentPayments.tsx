@@ -95,7 +95,9 @@ const StudentPayments = () => {
     printPaymentReceipt({
       payment,
       studentName: student.user?.name || "—",
-      studentId: student.user?.studentId || "—",
+      // Per-enrollment ID — the dropped `User.studentId` is replaced
+      // by the receipt's `payment.studentCourseId` field.
+      studentId: payment.studentCourseId ?? student.user?.mobile ?? "—",
       studentMobile: student.mobile,
       studentBatch: batchLabel || undefined,
       paymentStatus: derivedStatus,

@@ -11,6 +11,7 @@ import {
   TStudent,
   TStudentCourseEnrollment,
   TStudentBatch,
+  TCourseStatus,
 } from "@/types/student";
 import {
   Table,
@@ -33,6 +34,17 @@ type StudentsTableProps = {
   students: TStudent[];
   isLoading: boolean;
   isFetching: boolean;
+  /**
+   * When set, only the enrollments whose `course.status` matches this
+   * value are rendered in the row (Student ID, Courses, Batch, Batch
+   * Day, Batch Time cells, payment status / totals). The student row
+   * itself stays visible — a student admitted to multiple courses
+   * across different stages will still appear once on each tab,
+   * scoped to the tab's cohort. When undefined, every active
+   * enrollment is shown (backwards-compatible with callers that
+   * don't pass a tab).
+   */
+  courseStatus?: TCourseStatus;
   onView: (s: TStudent) => void;
   onEdit: (s: TStudent) => void;
   onPay?: (s: TStudent) => void;
@@ -101,6 +113,7 @@ const StudentsTable = ({
   students,
   isLoading,
   isFetching,
+  courseStatus,
   onView,
   onEdit,
   onPay,
@@ -148,22 +161,67 @@ const StudentsTable = ({
             </TableRow>
           ) : (
             students.map((student) => {
-              const enrollments = student.studentCourses ?? [];
-              const { totalFee, totalPaid, totalDue } = computeTotals(student);
+              // When a course-status tab is active, scope the per-row
+              // render to the enrollments whose course is in that
+              // stage. The student row still appears (they're enrolled
+              // in at least one matching course — the backend already
+              // filtered on the same criterion via ?courseStatus=X),
+              // but every per-enrollment column (Student ID, Courses,
+              // Batch, Batch Day, Batch Time) and the payment totals
+              // only consider the matching slice so a student admitted
+              // to two courses across different stages doesn't show
+              // BOTH enrollments when the admin is on the ADMISSION
+              // tab.
+              const allEnrollments = student.studentCourses ?? [];
+              const enrollments = courseStatus
+                ? allEnrollments.filter(
+                    (sc) => (sc.course?.status ?? "ADMISSION") === courseStatus,
+                  )
+                : allEnrollments;
+              // Recompute the totals against the filtered slice so the
+              // status badge, balance, and Pay-button gating reflect
+              // just the courses that are visible on the current tab.
+              const filteredTotalFee = enrollments.reduce(
+                (sum, sc) => sum + Number(sc.course?.fee ?? 0),
+                0,
+              );
+              const filteredTotalPaid = (student.payments ?? [])
+                // Scope the payment slice to the visible enrollments
+                // too — otherwise a student with a PAID HSC_2ND_YEAR
+                // (in a different status tab) would still drag the
+                // totals into "PAID" on the ADMISSION tab.
+                .filter((p) =>
+                  enrollments.some((sc) => sc.id === p.studentCourseId),
+                )
+                .reduce((sum, p) => sum + Number(p.amount), 0);
+              const totalFee = filteredTotalFee;
+              const totalPaid = filteredTotalPaid;
+              const totalDue = Math.max(0, totalFee - totalPaid);
               const hasEnrollments = enrollments.length > 0;
               const isFullyPaid = hasEnrollments && totalDue <= 0;
               const isPartial =
                 hasEnrollments && totalPaid > 0 && totalDue > 0;
               const isPending = hasEnrollments && totalPaid <= 0;
-              const status =
-                student.paymentStatus ??
-                (isFullyPaid
+              // When a course-status tab is active, derive the per-row
+              // status from the filtered slice (totalFee / totalPaid
+              // above are already scoped). Otherwise fall back to the
+              // student-level snapshot the backend ships.
+              const status = courseStatus
+                ? isFullyPaid
                   ? "PAID"
                   : isPartial
                   ? "PARTIAL"
                   : isPending
                   ? "PENDING"
-                  : "PENDING");
+                  : "PENDING"
+                : student.paymentStatus ??
+                  (isFullyPaid
+                    ? "PAID"
+                    : isPartial
+                    ? "PARTIAL"
+                    : isPending
+                    ? "PENDING"
+                    : "PENDING");
 
               // Only show the Pay button when the student actually owes money.
               // We respect the persisted `paymentStatus` (which honors manual
@@ -211,7 +269,11 @@ const StudentsTable = ({
                         ))}
                       </div>
                     ) : (
-                      <span>{student.user.studentId}</span>
+                      // No active enrollment — fall back to the user's
+                      // mobile (the dropped `User.studentId` was
+                      // replaced by mobile as the per-account
+                      // identifier).
+                      <span>{student.user.mobile}</span>
                     )}
                   </TableCell>
 

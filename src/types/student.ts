@@ -31,7 +31,10 @@ export type TBatchTime = string;
 
 export type TStudentUser = {
   id: string;
-  studentId: string;
+  // Mobile is the canonical per-account identifier now; the
+  // per-enrollment `studentCourseId` lives on the
+  // `TStudentCourseEnrollment` shape below.
+  mobile: string;
   name: string;
   nickname?: string | null;
   status?: string;
@@ -112,6 +115,12 @@ export type TStudent = {
   attendance?: TAttendance[];
 };
 
+// Course lifecycle stages — drives the Courses page badge color and
+// (in tandem with `isAllowAdmitAnotherCourse`) the admit-form picker.
+// Kept as a string-literal union so the type stays usable in plain TS
+// without importing from Prisma-generated enums.
+export type TCourseStatus = 'ADMISSION' | 'ONGOING' | 'COMPLETE';
+
 export type TCourse = {
   id: string;
   name: TCourseName;
@@ -119,11 +128,20 @@ export type TCourse = {
   fee: string | number;
   hscBatch: THscBatch;
   isActive: boolean;
-  // Admin-set batch-graduation flag. A student cannot enroll in another
-  // course while they have an active enrollment in a course whose
-  // isCompleted is false. Distinct from StudentCourse.isCompleted
-  // (which tracks per-enrollment course-grade completion).
-  isCompleted?: boolean;
+  // Course lifecycle stage (ADMISSION / ONGOING / COMPLETE). New courses
+  // default to ADMISSION. Admins flip stages via the segmented control
+  // on the Courses page (single click, no edit modal). Independent of
+  // `isAllowAdmitAnotherCourse` (the actual enrollment gate) — see below.
+  status?: TCourseStatus;
+  // Admin-controlled gate that overrides the natural
+  // "one-course-at-a-time" rule: when true, the student-service
+  // enrollment block lets a student with an active enrollment in THIS
+  // course admit into another course. Defaults to false; the status-set
+  // endpoint keeps it consistent with `status` (COMPLETE → true, anything
+  // else → false) so admins can't drift them apart via single-click
+  // transitions. Distinct from `StudentCourse.isCompleted` (which tracks
+  // per-enrollment course-grade completion set by the exam module).
+  isAllowAdmitAnotherCourse?: boolean;
   completedAt?: string | null;
   completedBy?: string | null;
   // Per-course seat cap. NULL = uncapped. The backend enforces this
@@ -153,6 +171,32 @@ export type TCourseBatchDay = {
   name?: string | null;
   days: string[];
   times: string[];
+  /**
+   * Per-batch class duration in total minutes (e.g. 75 for "1h 15m").
+   * Drives the kiosk's live progress bar / countdown. Optional on
+   * input — `null` falls back to the legacy 60-min default until
+   * the admin sets an explicit value.
+   */
+  durationMinutes?: number | null;
+  /**
+   * Per-slot admit-enabled flag, parallel to `times[]`. The admin
+   * manually toggles which slot of a batch accepts attendance at
+   * any given time. Default behaviour (when this array is empty
+   * or shorter than `times`) treats every slot as admitting, so
+   * legacy rows continue to work without a manual edit.
+   */
+  slotStates?: boolean[];
+  /**
+   * Per-slot "check-in window override" flag, parallel to
+   * `times[]`. When the i-th element is `true`, the kiosk
+   * accepts scans for that slot regardless of the wall clock
+   * (admin opened the window early for an early arrival, or
+   * kept it open past the 5-min mark). When `false` (or
+   * absent), the kiosk uses the default 5-minute window
+   * centred on the slot start time. Independent of the
+   * admit gate (slotStates[i]).
+   */
+  manualWindowOverride?: boolean[];
   position: number;
 };
 
@@ -273,6 +317,14 @@ export type TStudentQuery = {
   searchTerm?: string;
   hscBatch?: THscBatch;
   courseId?: string;
+  /**
+   * Course lifecycle filter — narrows the cohort to students whose
+   * active enrollment belongs to a course in the given stage.
+   * Mirrors the Courses page tabs so the Students page can offer
+   * the same Admission / Ongoing / Complete split. When `courseId`
+   * is also set, both filters are AND-combined.
+   */
+  courseStatus?: TCourseStatus;
   batchDay?: TBatchDay;
   batchDayId?: string;
   batchTime?: TBatchTime;

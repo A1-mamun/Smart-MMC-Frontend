@@ -2,7 +2,11 @@ export type TUserRole = "SUPER_ADMIN" | "ADMIN" | "STUDENT";
 
 export type TUser = {
   id: string;
-  studentId: string;
+  // Mobile is the canonical login handle now — `studentId` (the old
+  // per-user string) was dropped from the User model. Per-enrollment
+  // IDs live on StudentCourse.studentCourseId and are surfaced
+  // through the student / receipt types, not here.
+  mobile: string;
   name: string;
   nickname?: string | null;
   role: TUserRole;

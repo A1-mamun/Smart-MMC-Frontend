@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Eye, EyeOff, Loader2, Lock, Phone } from "lucide-react";
+import { Eye, EyeOff, Lock, Phone } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,20 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
+/**
+ * Signin-only form. The card chrome lives in
+ * `app/(CommonLayout)/free-classes/signin/page.tsx`.
+ *
+ * The form is intentionally stateless across navigations: no
+ * `?mobile=` query-param pre-fill, no sessionStorage draft. The
+ * user types their own number every time.
+ *
+ * If the account doesn't exist (404 NOT_FOUND from the free
+ * login endpoint or the regular /auth/sign-in), the form
+ * pushes the user straight to `/free-classes/signup` — the
+ * "Sign in" button doubles as the entry point to the signup
+ * flow.
+ */
 const FreeClassLoginForm = () => {
   const router = useRouter();
   const dispatch = useAppDispatch();
@@ -46,14 +60,33 @@ const FreeClassLoginForm = () => {
     defaultValues: { mobile: "", password: "" },
   });
 
+  // The freeLogin endpoint returns 404 NOT_FOUND with message
+  // "No account found with this mobile number" when the mobile
+  // isn't registered. We treat that as the "first sign up" signal —
+  // any other 4xx (wrong password, banned, etc.) gets the regular
+  // toast.
+  const isAccountMissing = (msg: string | undefined) => {
+    if (!msg) return false;
+    const m = msg.toLowerCase();
+    return (
+      m.includes("no account found") ||
+      m.includes("not found") ||
+      m.includes("doesn't exist") ||
+      m.includes("does not exist")
+    );
+  };
+
   const onSubmit = async (values: FormValues) => {
     // Try the dedicated /free-class/login first — it returns the right
     // "free account required" error if a paid student accidentally tries
     // to sign in here. Fall back to the regular /auth/sign-in so paid
-    // students can also reach the free classes page (preview mode).
+    // students can sign in via the regular portal and land on their
+    // own dashboard.
     const persist = (user: {
       id: string;
-      studentId: string;
+      // Mobile replaces the dropped `User.studentId` as the
+      // per-account identifier on the auth payload.
+      mobile: string;
       name: string;
       role: "SUPER_ADMIN" | "ADMIN" | "STUDENT";
       mustChangePassword: boolean;
@@ -73,12 +106,30 @@ const FreeClassLoginForm = () => {
       if (res.success && res.data?.accessToken) {
         persist(res.data.user, res.data.accessToken);
         toast.success("Logged in to Free Classes");
+        // Refresh the route group so the now-authenticated
+        // FreeClassLanding server component re-renders with the
+        // content view, then push to /free-classes (the free
+        // student's content home). The server already confirmed
+        // `isFreeAccount: true` via this endpoint so we don't
+        // need to re-check.
         router.refresh();
+        router.push("/free-classes");
         return;
       }
-    } catch {
-      // Free-account endpoint refused (e.g. paid account, or wrong
-      // password). Fall through to /auth/sign-in for paid accounts.
+    } catch (err) {
+      const e = err as { status?: number; data?: { message?: string } };
+      const message = e?.data?.message;
+      // 404 from /free-class/login means the mobile isn't registered
+      // as a free account. Push the user straight to the signup
+      // page so they can create an account — the "Sign in" button
+      // doubles as the entry point to the signup flow.
+      if (e?.status === 404 || isAccountMissing(message)) {
+        router.push("/free-classes/signup");
+        return;
+      }
+      // Free-account endpoint refused (paid account, wrong
+      // password, banned, …). Fall through to /auth/sign-in so
+      // paid students can sign in via the regular portal.
     }
 
     try {
@@ -88,21 +139,48 @@ const FreeClassLoginForm = () => {
       }).unwrap();
       if (res.success && res.data?.accessToken) {
         const user = res.data.user;
+        // Trust the server's payload over the JWT decode so a token
+        // minted before isFreeAccount was added still reflects the
+        // current DB state — same pattern as SignInPage.
+        const isFreeAccount = !!user.isFreeAccount;
+        const mustChangePassword = !!user.mustChangePassword;
         persist(
           {
             ...user,
-            isFreeAccount: !!user.isFreeAccount,
+            isFreeAccount,
           },
           res.data.accessToken,
         );
         toast.success("Logged in");
         router.refresh();
+        // Routing per case-2 in the spec:
+        //   - free student → free-class content home
+        //   - paid student → student panel
+        //   - admin → admin dashboard
+        // mustChangePassword takes priority so the user is forced
+        // to rotate their password before they reach their home.
+        if (mustChangePassword) {
+          const target =
+            user.role === "STUDENT"
+              ? "/dashboard/student/change-password"
+              : "/dashboard/change-password";
+          router.push(target);
+        } else if (isFreeAccount) {
+          router.push("/free-classes");
+        } else if (user.role === "STUDENT") {
+          router.push("/dashboard/student");
+        } else {
+          router.push("/dashboard");
+        }
       }
     } catch (err) {
-      const message =
-        (err as { data?: { message?: string } })?.data?.message ||
-        "Invalid credentials";
-      toast.error(message);
+      const e = err as { status?: number; data?: { message?: string } };
+      const message = e?.data?.message;
+      if (e?.status === 404 || isAccountMissing(message)) {
+        router.push("/free-classes/signup");
+        return;
+      }
+      toast.error(message || "Invalid credentials");
     }
   };
 
@@ -153,6 +231,16 @@ const FreeClassLoginForm = () => {
       <Button type="submit" className="w-full">
         Sign in
       </Button>
+      <p className="text-center text-xs text-muted-foreground">
+        New here?{" "}
+        <a
+          href="/free-classes/signup"
+          className="font-medium text-primary hover:underline"
+        >
+          Sign up here
+        </a>
+        .
+      </p>
     </form>
   );
 };

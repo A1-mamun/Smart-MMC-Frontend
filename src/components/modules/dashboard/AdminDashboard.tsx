@@ -8,6 +8,7 @@ import {
   CreditCard,
   Activity,
   Gift,
+  UserX,
 } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import StatCard from "./StatCard";
 import { useGetAdminDashboardQuery } from "@/redux/features/dashboard/dashboard";
 import { useGetAdmissionComparisonQuery, useGetCollectionTrendQuery, useGetPaymentMethodBreakdownQuery } from "@/redux/features/stats/stats";
+import { useGetAttendanceStatsQuery } from "@/redux/features/attendance/attendance";
 import { TActivityLog } from "@/types/activityLog";
 import { formatBatchLabel } from "@/constants/labels";
 import dayjs from "dayjs";
@@ -45,6 +47,9 @@ const AdminDashboard = () => {
     refetchOnMountOrArgChange: true,
   });
   const { data: paymentMethods } = useGetPaymentMethodBreakdownQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
+  const { data: attendanceStats } = useGetAttendanceStatsQuery(undefined, {
     refetchOnMountOrArgChange: true,
   });
 
@@ -141,6 +146,14 @@ const AdminDashboard = () => {
           icon={CalendarCheck2}
           sublabel={`This month: ${cards.monthAttendance}`}
         />
+        {attendanceStats?.data && (
+          <StatCard
+            label="Today Absent"
+            value={attendanceStats.data.todayAbsent ?? 0}
+            icon={UserX}
+            sublabel="Marked by cron after class end"
+          />
+        )}
         {comparison?.data && (
           <StatCard
             label={`Admission ${formatBatchLabel(comparison.data.currentBatch)}`}

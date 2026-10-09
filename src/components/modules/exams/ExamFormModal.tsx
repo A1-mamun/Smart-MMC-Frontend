@@ -70,7 +70,7 @@ const formatCourseName = (name?: string) => {
 const ExamFormModal = ({ open, exam, onClose, onSaved }: Props) => {
   const isEdit = !!exam;
   const { data: coursesData } = useGetAllCoursesQuery(
-    { isActive: true, limit: 100 },
+    { limit: 100 },
     { refetchOnMountOrArgChange: true },
   );
   const courses = coursesData?.data || [];

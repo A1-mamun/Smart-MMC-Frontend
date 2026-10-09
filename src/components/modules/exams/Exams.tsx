@@ -122,7 +122,7 @@ const Exams = ({
 
   // Course filter dropdown
   const { data: coursesData } = useGetAllCoursesQuery(
-    { isActive: true, limit: 100 },
+    { limit: 100 },
     { refetchOnMountOrArgChange: true },
   );
   const courses = coursesData?.data || [];

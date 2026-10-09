@@ -20,7 +20,6 @@ import {
   useSetSlotWindowOverrideMutation,
   useToggleAdmitAnotherCourseMutation,
   useToggleBatchSlotMutation,
-  useToggleCourseActiveMutation,
   useUpdateCourseMutation,
 } from "@/redux/features/course/course";
 import { TCourse, TCourseStatus } from "@/types/student";
@@ -376,8 +375,6 @@ const CoursesPage = () => {
   const [createCourse] = useCreateCourseMutation();
   const [updateCourse] = useUpdateCourseMutation();
   const [deleteCourse] = useDeleteCourseMutation();
-  const [toggleActive, { isLoading: toggling }] =
-    useToggleCourseActiveMutation();
   const [toggleSlot, { isLoading: togglingSlot }] =
     useToggleBatchSlotMutation();
   const [setSlotWindow, { isLoading: settingSlotWindow }] =
@@ -397,19 +394,14 @@ const CoursesPage = () => {
   const allCourses = data?.data || [];
   // Three primary tabs — one per lifecycle stage. The lifecycle status
   // is the main axis the admin thinks along ("which batch is admitting
-  // new students, which is in flight, which has graduated"); the
-  // isActive toggle is orthogonal and surfaced per-card as a separate
-  // badge + control.
+  // new students, which is in flight, which has graduated"). The
+  // historical `isActive` boolean was removed in favour of this
+  // single source of truth.
   const admissionCourses = allCourses.filter(
     (c) => (c.status ?? "ADMISSION") === "ADMISSION",
   );
   const ongoingCourses = allCourses.filter((c) => c.status === "ONGOING");
   const completeCourses = allCourses.filter((c) => c.status === "COMPLETE");
-  // Cross-cutting counts surfaced in the header subtitle. The
-  // inactive count is the difference between all courses and the
-  // active ones — pausing a course via the Power button just flips
-  // isActive, it doesn't move the course between status tabs.
-  const activeCount = allCourses.filter((c) => c.isActive).length;
   const displayedCourses =
     activeTab === "ADMISSION"
       ? admissionCourses
@@ -537,19 +529,6 @@ const CoursesPage = () => {
     try {
       await deleteCourse(course.id).unwrap();
       toast.success("Course deleted");
-      refetch();
-    } catch (err: any) {
-      toast.error(err?.data?.message || "Failed");
-    }
-  };
-
-  const handleToggle = async (course: TCourse) => {
-    try {
-      const willActivate = !course.isActive;
-      await toggleActive({ id: course.id, isActive: willActivate }).unwrap();
-      toast.success(`Course ${willActivate ? "activated" : "deactivated"}`);
-      // Switch to the tab the course now belongs to so the user sees the change.
-      // setActiveTab(willActivate ? "active" : "inactive");
       refetch();
     } catch (err: any) {
       toast.error(err?.data?.message || "Failed");
@@ -686,12 +665,6 @@ const CoursesPage = () => {
           <h2 className="text-2xl font-bold tracking-tight">Courses</h2>
           <p className="text-sm text-muted-foreground">
             {admissionCourses.length} admission · {ongoingCourses.length} ongoing · {completeCourses.length} completed
-            {/* isActive is orthogonal to status — surface the pause
-                count separately so a paused-but-Admission course shows
-                up in the right tab with a small marker. */}
-            {activeCount < allCourses.length
-              ? ` · ${allCourses.length - activeCount} paused`
-              : ""}
           </p>
         </div>
         <Dialog
@@ -1031,11 +1004,6 @@ const CoursesPage = () => {
                             the lifecycle stage are both readable at a
                             glance without opening the edit modal. */}
                         <StatusBadge status={course.status ?? "ADMISSION"} />
-                        <Badge
-                          variant={course.isActive ? "success" : "secondary"}
-                        >
-                          {course.isActive ? "Active" : "Inactive"}
-                        </Badge>
                       </div>
                     </CardTitle>
                   </CardHeader>
@@ -1235,15 +1203,6 @@ const CoursesPage = () => {
                           handleToggleAdmitAnotherCourse(course, next)
                         }
                       />
-                      <Button
-                        variant={course.isActive ? "secondary" : "default"}
-                        size="sm"
-                        onClick={() => handleToggle(course)}
-                        disabled={toggling}
-                      >
-                        <Power className="h-4 w-4" />{" "}
-                        {course.isActive ? "Deactivate" : "Activate"}
-                      </Button>
                       <Button
                         variant="destructive"
                         size="sm"

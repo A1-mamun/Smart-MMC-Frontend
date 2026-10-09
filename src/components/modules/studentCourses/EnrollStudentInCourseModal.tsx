@@ -39,7 +39,7 @@ type Props = {
 
 const EnrollStudentInCourseModal = ({ open, onClose, student, onSuccess }: Props) => {
   const [enroll, { isLoading }] = useEnrollStudentMutation();
-  const { data: coursesData } = useGetAllCoursesQuery({ isActive: true, limit: 100 });
+  const { data: coursesData } = useGetAllCoursesQuery({ limit: 100 });
   const [submitting, setSubmitting] = useState(false);
   const courses = coursesData?.data || [];
   const enrolledIds = new Set(student.studentCourses?.map((sc) => sc.courseId) || []);

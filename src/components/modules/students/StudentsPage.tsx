@@ -10,8 +10,6 @@ const StudentsPage = () => {
   //    students in the operationally relevant cohort (currently
   //    running batches). Admins can switch to Admission / Complete
   //    via the course-status tabs in the Students component.
-  //  - `activeCoursesOnly: true` so archived enrollments don't
-  //    pollute the list.
   //  - `isFreeAccount: false` so free-class accounts (which have
   //    no paid enrollment, no fee, and no NFC card) don't appear
   //    in the operations dashboard. Marketers can opt in to the
@@ -21,7 +19,6 @@ const StudentsPage = () => {
     limit: 20,
     sortBy: "createdAt",
     sortOrder: "desc",
-    activeCoursesOnly: true,
     isFreeAccount: false,
     courseStatus: "ONGOING",
   });

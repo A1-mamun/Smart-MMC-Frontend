@@ -3,6 +3,13 @@ import { Poppins, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import StoreProvider from "@/providers/StoreProvider";
+// Side-effect import: extends dayjs with utc + timezone plugins and
+// pins the default TZ to Asia/Dhaka so all date formatting in the UI
+// (attendance, dashboard, exams, etc.) renders in the institute's
+// calendar TZ regardless of the browser's local TZ. Imported here
+// (the root layout) so the config is loaded before any component
+// first renders dayjs.
+import "@/utils/dayjs";
 import "./globals.css";
 import { ReactNode } from "react";
 

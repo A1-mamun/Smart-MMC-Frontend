@@ -7,6 +7,7 @@ import { useGetStudentPaymentsQuery } from "@/redux/features/payment/payment";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AttendanceStatusBadge } from "@/components/modules/attendance/AttendanceStatusBadge";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -299,6 +300,7 @@ const StudentDetailPage = ({ params }: Props) => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Status</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Check-in</TableHead>
                   <TableHead>Method</TableHead>
@@ -307,13 +309,16 @@ const StudentDetailPage = ({ params }: Props) => {
               <TableBody>
                 {student.attendance?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="h-20 text-center text-muted-foreground">
+                    <TableCell colSpan={4} className="h-20 text-center text-muted-foreground">
                       No attendance records
                     </TableCell>
                   </TableRow>
                 ) : (
                   student.attendance?.map((a) => (
                     <TableRow key={a.id}>
+                      <TableCell>
+                        <AttendanceStatusBadge status={a.status} />
+                      </TableCell>
                       <TableCell>{new Date(a.date).toLocaleDateString()}</TableCell>
                       <TableCell>{new Date(a.checkInAt).toLocaleTimeString()}</TableCell>
                       <TableCell>

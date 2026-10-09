@@ -7,16 +7,10 @@ type TCheckInResult = {
   attendanceId: string;
   /**
    * The day the attendance row was stamped for — the student's
-   * dedicated class day. May equal the actual scan date (normal
-   * check-in) or a different day (make-up swap).
+   * dedicated class day. Always equals the actual scan date now
+   * that make-up attendance has been removed.
    */
   date: string;
-  /**
-   * When set, the student physically scanned on a peer batch's day
-   * and the row was recorded for their dedicated day. Carries the
-   * actual scan date as an ISO yyyy-mm-dd string.
-   */
-  swapFromDate?: string | null;
   checkInAt: string;
   method: string;
   isFirstCheckIn: boolean;

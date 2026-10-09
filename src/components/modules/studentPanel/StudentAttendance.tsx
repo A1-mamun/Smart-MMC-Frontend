@@ -2,6 +2,7 @@
 import { useGetMyProfileQuery } from "@/redux/features/student/student";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AttendanceStatusBadge } from "@/components/modules/attendance/AttendanceStatusBadge";
 import dayjs from "dayjs";
 
 const StudentAttendance = () => {
@@ -19,7 +20,7 @@ const StudentAttendance = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>{records.length} days present</CardTitle>
+          <CardTitle>{records.length} attendance rows</CardTitle>
         </CardHeader>
         <CardContent>
           {records.length === 0 ? (
@@ -39,7 +40,10 @@ const StudentAttendance = () => {
                       {dayjs(a.date).format("dddd")}
                     </p>
                   </div>
-                  <Badge variant="outline">{dayjs(a.checkInAt).format("h:mm A")}</Badge>
+                  <div className="flex flex-col items-end gap-1">
+                    <AttendanceStatusBadge status={a.status} />
+                    <Badge variant="outline">{dayjs(a.checkInAt).format("h:mm A")}</Badge>
+                  </div>
                 </div>
               ))}
             </div>

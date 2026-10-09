@@ -11,8 +11,6 @@ import {
   XCircle,
   Wallet,
   CalendarCheck2,
-  ArrowLeftRight,
-  RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -37,10 +35,6 @@ type TCheckInResult = {
   nickname?: string | null;
   attendanceId: string;
   date: string;
-  // When non-null, the row was recorded for the student's dedicated
-  // class day while the scan happened on a peer-batch day. ISO
-  // yyyy-mm-dd strings.
-  swapFromDate?: string | null;
   checkInAt: string;
   method: string;
   isFirstCheckIn: boolean;
@@ -64,8 +58,6 @@ type TFeedEntry = {
   isFirstCheckIn: boolean;
   method: string;
   at: string;
-  // ISO yyyy-mm-dd. Set when the backend returned a swap for this row.
-  swapFromDate?: string | null;
 };
 
 const formatTaka = (n: number) => `৳${n.toLocaleString()}`;
@@ -177,7 +169,6 @@ const ManualCheckInPage = () => {
           nickname: d.student.nickname,
           attendanceId: d.attendanceId,
           date: d.date,
-          swapFromDate: d.swapFromDate ?? null,
           checkInAt: d.checkInAt,
           method: d.method,
           isFirstCheckIn: d.isFirstCheckIn,
@@ -196,21 +187,14 @@ const ManualCheckInPage = () => {
             isFirstCheckIn: entry.isFirstCheckIn,
             method: entry.method,
             at: entry.checkInAt,
-            swapFromDate: entry.swapFromDate ?? null,
           },
           ...prev.filter((p) => p.studentCode !== entry.studentId),
         ]);
         playTone("ok");
-        // Toast surfaces the swap when applicable so the operator
-        // immediately sees whether the row was recorded for today or
-        // for an adjacent dedicated day.
-        const isSwap = Boolean(entry.swapFromDate);
         toast.success(
-          isSwap
-            ? `${entry.name} · make-up for ${dayjs(entry.date).format("ddd, MMM D")}`
-            : entry.dueAmount > 0
-              ? `${entry.name} · due ${formatTaka(entry.dueAmount)}`
-              : `${entry.name} · fully paid`,
+          entry.dueAmount > 0
+            ? `${entry.name} · due ${formatTaka(entry.dueAmount)}`
+            : `${entry.name} · fully paid`,
         );
       }
     } catch (err) {
@@ -241,21 +225,17 @@ const ManualCheckInPage = () => {
             isFirstCheckIn: d.isFirstCheckIn,
             method: d.method,
             at: d.checkInAt,
-            swapFromDate: d.swapFromDate ?? null,
           },
           ...prev.filter(
             (p) => p.studentCode !== d.student.studentId,
           ),
         ]);
-        // Also surface the swap in the headline card so the admin
-        // sees the make-up row the same way a barcode scan would.
         setLastScan({
           studentId: d.student.studentId,
           name: d.student.name,
           nickname: d.student.nickname,
           attendanceId: d.attendanceId,
           date: d.date,
-          swapFromDate: d.swapFromDate ?? null,
           checkInAt: d.checkInAt,
           method: d.method,
           isFirstCheckIn: d.isFirstCheckIn,
@@ -339,25 +319,20 @@ const ManualCheckInPage = () => {
       </Card>
 
       {/* Last-scan card — the headline feedback after each successful
-          scan. Shows payment status prominently. Swap rows take amber
-          priority over due (a make-up is the more interesting event). */}
+          scan. Shows payment status prominently. */}
       {lastScan && (
         <Card
           className={
-            lastScan.swapFromDate
+            lastScan.dueAmount > 0
               ? "border-amber-400 bg-amber-50/40"
-              : lastScan.dueAmount > 0
-                ? "border-amber-400 bg-amber-50/40"
-                : "border-emerald-400 bg-emerald-50/40"
+              : "border-emerald-400 bg-emerald-50/40"
           }
         >
           <CardContent className="p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2">
-                  {lastScan.swapFromDate ? (
-                    <ArrowLeftRight className="h-5 w-5 text-amber-600" />
-                  ) : lastScan.dueAmount > 0 ? (
+                  {lastScan.dueAmount > 0 ? (
                     <XCircle className="h-5 w-5 text-amber-600" />
                   ) : (
                     <CheckCircle2 className="h-5 w-5 text-emerald-600" />
@@ -384,20 +359,9 @@ const ManualCheckInPage = () => {
                   )}{" "}
                   <span className="opacity-70">({lastScan.method})</span>
                 </p>
-                {lastScan.swapFromDate && (
-                  <p className="text-xs text-amber-700 mt-1 font-medium">
-                    Recorded for {dayjs(lastScan.date).format("ddd, MMM D")}{" "}
-                    · scanned {dayjs(lastScan.swapFromDate).format("ddd")}
-                  </p>
-                )}
               </div>
               <div className="text-right">
-                {lastScan.swapFromDate ? (
-                  <Badge variant="warning" className="text-sm">
-                    <ArrowLeftRight className="h-3 w-3 mr-1" />
-                    Make-up swap
-                  </Badge>
-                ) : lastScan.dueAmount > 0 ? (
+                {lastScan.dueAmount > 0 ? (
                   <>
                     <Badge variant="warning" className="text-sm">
                       <Wallet className="h-3 w-3 mr-1" />
@@ -415,9 +379,7 @@ const ManualCheckInPage = () => {
                 )}
                 <p className="text-xs text-muted-foreground mt-1">
                   {lastScan.isFirstCheckIn
-                    ? lastScan.swapFromDate
-                      ? "First make-up recorded"
-                      : "First check-in today"
+                    ? "First check-in today"
                     : "Already checked in"}
                 </p>
               </div>
@@ -439,37 +401,16 @@ const ManualCheckInPage = () => {
             {feed.map((f, i) => (
               <div
                 key={`${f.studentCode}-${f.at}-${i}`}
-                className={
-                  f.swapFromDate
-                    ? "flex items-center justify-between rounded-md border border-amber-300 bg-amber-50/40 px-3 py-2"
-                    : "flex items-center justify-between rounded-md border bg-card px-3 py-2"
-                }
+                className="flex items-center justify-between rounded-md border bg-card px-3 py-2"
               >
                 <div>
-                  <p className="font-medium text-sm">
-                    {f.name}
-                    {f.swapFromDate && (
-                      <Badge
-                        variant="warning"
-                        className="text-[10px] ml-2 align-middle"
-                      >
-                        <RefreshCw className="h-2.5 w-2.5 mr-1" />
-                        make-up
-                      </Badge>
-                    )}
-                  </p>
+                  <p className="font-medium text-sm">{f.name}</p>
                   <p className="text-xs text-muted-foreground font-mono">
                     {f.studentCode}
                     {f.courseNames.length > 0
                       ? ` · ${f.courseNames.join(", ")}`
                       : ""}
                   </p>
-                  {f.swapFromDate && (
-                    <p className="text-[10px] text-amber-700 font-medium mt-0.5">
-                      Recorded for {dayjs(f.at).format("ddd, MMM D")} ·
-                      scanned {dayjs(f.swapFromDate).format("ddd")}
-                    </p>
-                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   {f.dueAmount > 0 ? (

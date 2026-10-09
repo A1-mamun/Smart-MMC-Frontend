@@ -127,7 +127,6 @@ export type TCourse = {
   description?: string | null;
   fee: string | number;
   hscBatch: THscBatch;
-  isActive: boolean;
   // Course lifecycle stage (ADMISSION / ONGOING / COMPLETE). New courses
   // default to ADMISSION. Admins flip stages via the segmented control
   // on the Courses page (single click, no edit modal). Independent of
@@ -246,12 +245,13 @@ export type TAttendance = {
   date: string;
   checkInAt: string;
   method: "NFC" | "MANUAL" | "ADMIN";
+  // Outcome for THIS row. Mirrors the backend `AttendanceStatus`
+  // enum (see AttendanceStatusBadge.tsx). The migration backfilled
+  // every pre-existing row to PRESENT, so historical responses
+  // always carry a non-null value. Make-up attendance is no longer
+  // supported — SWAP is intentionally absent from the union.
+  status?: "PRESENT" | "ABSENT" | string;
   deviceId?: string | null;
-  // When the row is a make-up swap (the recorded `date` is the
-  // student's dedicated class day but they actually scanned on a
-  // peer batch's day), this carries the actual scan date. Null for
-  // normal attendance.
-  swapFromDate?: string | null;
 };
 
 export type TAttendanceWithStudent = TAttendance & {
@@ -340,8 +340,6 @@ export type TStudentQuery = {
   scenarioCourses?: string;
   /** When true, keeps only students with at least one non-PAID enrollment. */
   hasDue?: boolean;
-  /** When true, keeps only students enrolled in an active course. */
-  activeCoursesOnly?: boolean;
   /**
    * ISO yyyy-mm-dd. Resolves to "students enrolled in a class on this
    * weekday minus students with an Attendance row on this exact date".

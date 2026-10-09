@@ -54,7 +54,7 @@ import { cn } from "@/lib/utils";
  *   "next class in N min" pre-announcement.
  */
 type TFeedback =
-  | { kind: "success"; title: string; subtitle: string; courseNames?: string[]; swapFromDate?: string | null }
+  | { kind: "success"; title: string; subtitle: string; courseNames?: string[] }
   | { kind: "failure"; title: string; subtitle: string };
 
 /**
@@ -268,7 +268,6 @@ const AutomaticAttendancePage = () => {
           title: res.data.student.name,
           subtitle: res.data.message,
           courseNames: res.data.courseNames,
-          swapFromDate: res.data.swapFromDate,
         });
       } else {
         setFeedback({
@@ -290,8 +289,7 @@ const AutomaticAttendancePage = () => {
     } finally {
       // Re-focus so the next scan works without a mouse trip. We
       // also refetch the current-batch info so the displayed
-      // batch updates immediately if the scan somehow advanced
-      // the day (e.g. a make-up that crossed midnight).
+      // batch updates immediately after a successful scan.
       scannerRef.current?.focus();
       refetchCurrentBatch();
     }
@@ -498,11 +496,6 @@ const AutomaticAttendancePage = () => {
                 ))}
               </div>
             )}
-            {feedback.kind === "success" && feedback.swapFromDate && (
-              <p className="mt-2 text-xs text-amber-700">
-                Make-up: scanned {dayjs(feedback.swapFromDate).format("ddd, MMM D")} → recorded for today
-              </p>
-            )}
           </div>
         </div>
       )}
@@ -606,8 +599,9 @@ const CurrentBatchView = ({
           </p>
         </div>
         <p className="mt-4 text-sm text-slate-500">
-          The scanner is still live — students can be admitted
-          against the next batch&apos;s make-up window if applicable.
+          The scanner stays live between batches so the operator can
+          keep it running. Check-in only opens when the next batch
+          starts.
         </p>
       </div>
     );

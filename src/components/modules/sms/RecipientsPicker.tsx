@@ -1,25 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Search, X, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Search, X, Users, Phone, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { useGetAllStudentsQuery } from "@/redux/features/student/student";
-import {
-  useGetAllCoursesQuery,
-  useGetCourseByIdQuery,
-} from "@/redux/features/course/course";
-import type { TCourseBatchDay, TStudent } from "@/types/student";
+import type { TStudent } from "@/types/student";
 import type { TSmsRecipient } from "@/types/sms";
 import { formatBatchLabel, formatBatchDayLabel } from "@/constants/labels";
 import QuickScenarioFilters, {
@@ -28,16 +18,25 @@ import QuickScenarioFilters, {
 } from "./QuickScenarioFilters";
 
 /**
- * Decide which mobile to send to when the admin is using the
- * absent-warning picker. Per the latest spec the absent-warning flow
- * (both automated job AND manual picker) targets the father ONLY —
- * no mother / self fallback. When `absentOnDate` is empty (regular
- * flow), we keep the existing behaviour of using the student's own
- * mobile.
+ * Which mobile the picker should attach to each recipient. The
+ * absent-warning flow is locked to the father (per spec), so the
+ * picker forces the choice in that mode — see the locked-state
+ * logic in `effectiveRecipientType` below.
  */
-const pickWarningMobile = (s: TStudent, absentOnDate: string): string => {
-  if (!absentOnDate) return s.mobile;
-  return s.fatherMobile || "";
+export type TRecipientType = "student" | "guardian";
+
+/**
+ * Decide which mobile to send to for a given student. The
+ * absent-warning flow overrides everything and forces the
+ * father's number (per spec — no mother / self fallback).
+ */
+const pickMobile = (
+  s: TStudent,
+  recipientType: TRecipientType,
+  absentOnDate: string,
+): string => {
+  if (absentOnDate) return s.fatherMobile || "";
+  return recipientType === "guardian" ? s.fatherMobile || "" : s.mobile;
 };
 
 type Props = {
@@ -61,8 +60,6 @@ type Props = {
  */
 const RecipientsPicker = ({ initial = [], onChange }: Props) => {
   const [search, setSearch] = useState("");
-  const [courseId, setCourseId] = useState("");
-  const [batchDayId, setBatchDayId] = useState("");
   // The picker is fully controlled: `selected` is read straight from the
   // parent's `initial` prop and every mutation just calls `onChange(next)`.
   // We deliberately avoid a parallel `useState` here because dual sources
@@ -70,53 +67,93 @@ const RecipientsPicker = ({ initial = [], onChange }: Props) => {
   // after a filter change). All counts in the picker header, the SmsPage
   // summary card, and the Send button therefore reflect the same array.
   const selected = initial;
-  // Quick-scenario state (date / time / multi-course / due / active).
-  // Additive with the search/course/batchday filters above.
+  // Quick-scenario state (date / status / course / batch day / time /
+  // due / absent). Course / batch day / time cascade inside
+  // `QuickScenarioFilters` (status → course → batch day → time), and
+  // everything is additive with the free-text search above.
   const [scenario, setScenario] = useState<QuickScenarioState>(EMPTY_SCENARIO);
+  // Which mobile the picker attaches to each recipient. Defaults
+  // to "student" so routine SMS go to the student themselves;
+  // when the absent-warning filter is set, the auto-flip effect
+  // below switches this to "guardian" (the father) because the
+  // spec mandates father-only delivery for that flow. The user
+  // can still flip it back manually — see `effectiveRecipientType`
+  // below for the locked-state override.
+  const [recipientType, setRecipientType] = useState<TRecipientType>("student");
+  // Absent-warning mode is father-only by spec, so we override
+  // the user's switch pick and force the type to "guardian".
+  // The radio UI also reflects this locked state.
+  const effectiveRecipientType: TRecipientType = scenario.absentOnDate
+    ? "guardian"
+    : recipientType;
+  // Auto-flip the recipient type to "guardian" the moment the
+  // admin sets an absent-warning date. Skips the update if we're
+  // already on guardian so we don't churn React state, and skips
+  // the update when the user CLEARS the date (the user
+  // explicitly opted back into student-side messaging — we
+  // respect that rather than snapping back to student).
+  useEffect(() => {
+    if (scenario.absentOnDate && recipientType !== "guardian") {
+      setRecipientType("guardian");
+    }
+    // `recipientType` is intentionally NOT in deps — we only
+    // want to react to the absentOnDate transition, not to our
+    // own setState.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenario.absentOnDate]);
 
-  const { data: coursesData } = useGetAllCoursesQuery(
-    { isActive: true, limit: 100 },
-    { refetchOnMountOrArgChange: true },
-  );
-  const courses = coursesData?.data || [];
-
-  const { data: courseDetail } = useGetCourseByIdQuery(courseId, {
-    skip: !courseId,
-  });
-
-  const availableBatchDays = useMemo(
-    () =>
-      !courseId
-        ? []
-        : (courseDetail?.data?.batchDays ?? []).map((d: TCourseBatchDay) => ({
-            value: d.id,
-            label: d.name || `Batch ${d.position + 1}`,
-          })),
-    [courseDetail, courseId],
-  );
-
-  // Pull enough rows so the picker covers every active student. All
-  // scenario values merge in as additional URLSearchParams via the
-  // student's `useGetAllStudentsQuery({ ... })` shim — it ignores unknown
-  // keys but forwards every one.
   const { data: studentsData, isFetching } = useGetAllStudentsQuery(
     {
       ...(search ? { searchTerm: search } : {}),
-      ...(courseId ? { courseId } : {}),
-      ...(batchDayId ? { batchDayId } : {}),
       ...(scenario.classDate ? { classDate: scenario.classDate } : {}),
       ...(scenario.classTime ? { classTime: scenario.classTime } : {}),
-      ...(scenario.scenarioCourses.length > 0
-        ? { scenarioCourses: scenario.scenarioCourses.join(",") }
+      ...(scenario.scenarioCourse
+        ? { scenarioCourses: scenario.scenarioCourse }
+        : {}),
+      ...(scenario.scenarioBatchDay
+        ? { batchDayId: scenario.scenarioBatchDay }
+        : {}),
+      ...(scenario.scenarioCourseStatus
+        ? { courseStatus: scenario.scenarioCourseStatus }
         : {}),
       ...(scenario.hasDue ? { hasDue: true } : {}),
-      ...(scenario.activeCoursesOnly ? { activeCoursesOnly: true } : {}),
       ...(scenario.absentOnDate ? { absentOnDate: scenario.absentOnDate } : {}),
       limit: 500,
     },
     { refetchOnMountOrArgChange: true },
   );
   const students = studentsData?.data || [];
+
+  // When the admin flips the recipient-type switch (or the
+  // scenario pins us to "guardian" for absent-warning), re-map
+  // every already-selected recipient's mobile so the SMS goes
+  // to the right number. Without this, the old mobile would
+  // linger on each selected student and a send would deliver
+  // to the wrong person. We skip the update if nothing changed
+  // (the user just toggled the switch back) so we don't churn
+  // the parent on every render.
+  useEffect(() => {
+    if (selected.length === 0) return;
+    const byId = new Map(students.map((s) => [s.id, s] as const));
+    const next = selected.map((r) => {
+      const s = byId.get(r.studentId);
+      if (!s) return r; // student no longer in the visible cohort — leave as-is
+      const desiredMobile = pickMobile(
+        s,
+        effectiveRecipientType,
+        scenario.absentOnDate,
+      );
+      return r.mobile === desiredMobile ? r : { ...r, mobile: desiredMobile };
+    });
+    const changed = next.some((r, i) => r !== selected[i]);
+    if (changed) onChange(next);
+    // We intentionally depend on `effectiveRecipientType` and
+    // `scenario.absentOnDate` (the inputs to `pickMobile`).
+    // `selected` is the parent's prop, not a local — including
+    // it in deps would cause an infinite loop because the
+    // effect calls `onChange` which mutates it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveRecipientType, scenario.absentOnDate, students]);
 
   const toggleRecipient = (r: TSmsRecipient) => {
     const exists = selected.some((p) => p.studentId === r.studentId);
@@ -140,7 +177,11 @@ const RecipientsPicker = ({ initial = [], onChange }: Props) => {
             .map((s) => ({
               studentId: s.id,
               name: s.user.name,
-              mobile: pickWarningMobile(s, scenario.absentOnDate),
+              mobile: pickMobile(
+                s,
+                effectiveRecipientType,
+                scenario.absentOnDate,
+              ),
             })),
         ];
     onChange(next);
@@ -199,57 +240,113 @@ const RecipientsPicker = ({ initial = [], onChange }: Props) => {
             )}
           </div>
 
-          <div className="grid gap-2 md:grid-cols-2">
-            <Select
-              value={courseId || "_all"}
-              onValueChange={(v) => {
-                const next = v === "_all" ? "" : v;
-                setCourseId(next);
-                setBatchDayId("");
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="All courses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="_all">All courses</SelectItem>
-                {courses.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name.replace(/_/g, " ")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={batchDayId || "_all"}
-              onValueChange={(v) => setBatchDayId(v === "_all" ? "" : v)}
-              disabled={availableBatchDays.length === 0}
-            >
-              <SelectTrigger>
-                <SelectValue
-                  placeholder={
-                    availableBatchDays.length === 0
-                      ? "Pick a course first"
-                      : "All batch days"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="_all">All batch days</SelectItem>
-                {availableBatchDays.map((b) => (
-                  <SelectItem key={b.value} value={b.value}>
-                    {b.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/*
+            The Course / Batch day / Time selects that used to live
+            here have been merged into the Quick-scenarios card
+            below (see `QuickScenarioFilters`). The cascade there
+            also threads in Course status, which the old
+            standalone top filter didn't expose. The free-text
+            search remains the only top-of-picker control.
+          */}
         </div>
       </CardHeader>
 
       <CardContent className="space-y-3">
         <QuickScenarioFilters value={scenario} onChange={setScenario} />
+
+        {/*
+          Recipient-type picker. Two labelled switch cards, mutually
+          exclusive — only one is "on" at a time. Student sends to
+          the student's own mobile, guardian (default for the
+          absent-warning flow) sends to the father's mobile. The
+          father's number is what the absent-warning spec mandates
+          anyway, so the switches are locked to "Guardian" when
+          `absentOnDate` is set (both visually disabled and the
+          internal `effectiveRecipientType` pinned).
+        */}
+        <div
+          className={`rounded-md border bg-background p-3 space-y-2 ${
+            scenario.absentOnDate ? "opacity-70" : ""
+          }`}
+          aria-disabled={!!scenario.absentOnDate}
+        >
+          <Label className="text-xs">Send to</Label>
+          {/*
+            Native radio-group instead of nested buttons + Switch.
+            Each option is a `<label>` containing a hidden radio
+            input — clicking the whole card flips the input, which
+            fires React's `onChange`. No `<button>` descendant of
+            another `<button>`, and the browser gives us the
+            correct "mutually exclusive choice" semantics for
+            screen readers via `role="radiogroup"`.
+          */}
+          <div
+            className="grid gap-2 md:grid-cols-2"
+            role="radiogroup"
+            aria-label="Recipient type"
+          >
+            <label
+              className={`flex items-center justify-between rounded-md border px-3 py-2 text-left transition-colors cursor-pointer ${
+                effectiveRecipientType === "student"
+                  ? "border-primary bg-primary/5"
+                  : "hover:bg-muted/40"
+              } ${scenario.absentOnDate ? "cursor-not-allowed" : ""}`}
+            >
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4 text-muted-foreground" />
+                <div className="text-sm">
+                  <p className="font-medium leading-none">Student</p>
+                  <p className="text-xs text-muted-foreground">
+                    Use the student's own mobile
+                  </p>
+                </div>
+              </div>
+              <input
+                type="radio"
+                name="recipient-type"
+                value="student"
+                checked={effectiveRecipientType === "student"}
+                disabled={!!scenario.absentOnDate}
+                onChange={() => setRecipientType("student")}
+                className="h-4 w-4 accent-primary"
+                aria-label="Send to student's mobile"
+              />
+            </label>
+            <label
+              className={`flex items-center justify-between rounded-md border px-3 py-2 text-left transition-colors cursor-pointer ${
+                effectiveRecipientType === "guardian"
+                  ? "border-primary bg-primary/5"
+                  : "hover:bg-muted/40"
+              } ${scenario.absentOnDate ? "cursor-not-allowed" : ""}`}
+            >
+              <div className="flex items-center gap-2">
+                <Phone className="h-4 w-4 text-muted-foreground" />
+                <div className="text-sm">
+                  <p className="font-medium leading-none">Guardian</p>
+                  <p className="text-xs text-muted-foreground">
+                    Use the father's mobile
+                  </p>
+                </div>
+              </div>
+              <input
+                type="radio"
+                name="recipient-type"
+                value="guardian"
+                checked={effectiveRecipientType === "guardian"}
+                disabled={!!scenario.absentOnDate}
+                onChange={() => setRecipientType("guardian")}
+                className="h-4 w-4 accent-primary"
+                aria-label="Send to guardian's mobile"
+              />
+            </label>
+          </div>
+          {scenario.absentOnDate && (
+            <p className="text-xs text-muted-foreground">
+              Absent-warning flow auto-switches to the guardian's mobile (father
+              only, no mother / self fallback).
+            </p>
+          )}
+        </div>
 
         <div className="rounded-md border bg-card overflow-hidden">
           <div className="flex items-center justify-between border-b px-3 py-2 text-xs text-muted-foreground">
@@ -288,7 +385,11 @@ const RecipientsPicker = ({ initial = [], onChange }: Props) => {
                         toggleRecipient({
                           studentId: s.id,
                           name: s.user.name,
-                          mobile: pickWarningMobile(s, scenario.absentOnDate),
+                          mobile: pickMobile(
+                            s,
+                            effectiveRecipientType,
+                            scenario.absentOnDate,
+                          ),
                         })
                       }
                       className="mt-1"

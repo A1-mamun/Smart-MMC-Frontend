@@ -92,9 +92,13 @@ const Students = ({
   const [batchTime, setBatchTime] = useState<string>(query.batchTime || "");
   console.log("batch day id", batchDayId, "batch time", batchTime);
 
-  // Fetch active courses for the course dropdown.
+  // Fetch courses for the course dropdown. `status: "ONGOING"` is
+  // the lifecycle equivalent of the old `isActive: true` filter —
+  // we hide COMPLETE (graduated) courses so the admin can't admit
+  // / re-enroll into them. ADMISSION courses are still surfaced
+  // (they're accepting new admits but haven't started class yet).
   const { data: coursesData } = useGetAllCoursesQuery(
-    { isActive: true, limit: 100 },
+    { status: "ONGOING", limit: 100 },
     { refetchOnMountOrArgChange: true },
   );
   const courses = coursesData?.data || [];
@@ -156,8 +160,6 @@ const Students = ({
       batchDay: undefined,
       batchDayId: undefined,
       batchTime: undefined,
-      // Reset to the page default (active-courses-only = true).
-      activeCoursesOnly: true,
       // Reset the course-status tab to its default (ONGOING).
       courseStatus: "ONGOING",
       // Reset to the page-default sort so "Clear all" puts the user back
@@ -169,16 +171,14 @@ const Students = ({
   };
 
   // Flags anything that diverges from the page's default state — search,
-  // cascading course filters, the active-courses toggle, the course-
-  // status tabs, or a non-default sort. `limit` is intentionally NOT
-  // included: it's a view preference, not a filter, so resizing the
-  // table shouldn't make "Clear all" appear.
+  // cascading course filters, the course-status tabs, or a non-default
+  // sort. `limit` is intentionally NOT included: it's a view preference,
+  // not a filter, so resizing the table shouldn't make "Clear all" appear.
   const hasActiveFilter =
     !!search ||
     !!courseId ||
     !!batchDayId ||
     !!batchTime ||
-    query.activeCoursesOnly !== true ||
     // The course-status tabs are a real filter; diverge from the
     // default ("ONGOING") so a non-default tab keeps the "Clear
     // all" affordance visible.
@@ -484,31 +484,6 @@ const Students = ({
                 </SelectContent>
               </Select>
             </div>
-          </div>
-
-          {/* 4. Active courses only (defaults to on so students whose only
-              enrollments are in archived / inactive courses are hidden by
-              default; users who want the full roster can toggle this off). */}
-          <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-            <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-muted-foreground" />
-              <div className="text-sm">
-                <p className="font-medium leading-none">Active courses only</p>
-                <p className="text-xs text-muted-foreground">
-                  Skip inactive / archived
-                </p>
-              </div>
-            </div>
-            <Switch
-              checked={!!query.activeCoursesOnly}
-              onCheckedChange={(v) =>
-                onQueryChange({
-                  ...query,
-                  activeCoursesOnly: v || undefined,
-                  page: 1,
-                })
-              }
-            />
           </div>
         </div>
       </div>

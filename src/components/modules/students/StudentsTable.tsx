@@ -6,7 +6,9 @@ import {
   Wallet,
   CheckCircle2,
   MessageSquare,
+  CalendarCheck,
 } from "lucide-react";
+import Link from "next/link";
 import {
   TStudent,
   TStudentCourseEnrollment,
@@ -137,6 +139,7 @@ const StudentsTable = ({
             <TableHead>Batch Day</TableHead>
             <TableHead>Batch Time</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead>Attendance</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -144,7 +147,7 @@ const StudentsTable = ({
           {isLoading ? (
             <TableRow>
               <TableCell
-                colSpan={9}
+                colSpan={10}
                 className="h-24 text-center text-muted-foreground"
               >
                 Loading students...
@@ -153,7 +156,7 @@ const StudentsTable = ({
           ) : students.length === 0 ? (
             <TableRow>
               <TableCell
-                colSpan={9}
+                colSpan={10}
                 className="h-24 text-center text-muted-foreground"
               >
                 No students found.
@@ -459,8 +462,56 @@ const StudentsTable = ({
                       </div>
                     )}
                   </TableCell>
+                  {/* Attendance % — all-time present / (present + absent)
+                       ratio rounded to the nearest integer. The full
+                       breakdown (counts + ratio) ships in
+                       `student.attendanceSummary`; we deliberately
+                       surface only the percentage here so the column
+                       stays a single badge. A "—" placeholder is shown
+                       when the student has no attendance rows yet
+                       (freshly admitted, before the first slot). */}
+                  <TableCell className="align-top">
+                    {student.attendanceSummary &&
+                    student.attendanceSummary.total > 0 ? (
+                      <div className="space-y-0.5">
+                        <Badge
+                          variant="outline"
+                          className={
+                            student.attendanceSummary.percentage >= 75
+                              ? "gap-1 border-emerald-500 text-emerald-700 dark:text-emerald-400"
+                              : student.attendanceSummary.percentage >= 50
+                                ? "gap-1 border-amber-500 text-amber-700 dark:text-amber-400"
+                                : "gap-1 border-destructive text-destructive"
+                          }
+                          title={`${student.attendanceSummary.present} present / ${student.attendanceSummary.absent} absent`}
+                        >
+                          {student.attendanceSummary.percentage}%
+                        </Badge>
+                        <div className="text-[10px] text-muted-foreground">
+                          {student.attendanceSummary.present}/
+                          {student.attendanceSummary.total}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        No data
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right align-top">
                     <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        asChild
+                        title="View attendance"
+                      >
+                        <Link
+                          href={`/dashboard/students/${student.id}/attendance`}
+                        >
+                          <CalendarCheck className="h-4 w-4" />
+                        </Link>
+                      </Button>
                       {hasDue && onPay && (
                         <Button
                           size="sm"

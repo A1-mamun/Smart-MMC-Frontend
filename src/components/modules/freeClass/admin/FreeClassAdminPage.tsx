@@ -645,7 +645,12 @@ const SubjectCard = ({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span className="flex h-6 w-6 items-center justify-center rounded bg-primary/10 text-xs font-bold text-primary">
-                    {chapter.position + 1}
+                    {/* `chapterNumber` is the 1-based ordinal the admin
+                        enters (mirrored to `position` for sort order by
+                        the chapter form). Using it directly avoids the
+                        `position + 1` off-by-one that mislabeled the
+                        first chapter as "2". */}
+                    {chapter.chapterNumber ?? chapter.position + 1}
                   </span>
                   <h4 className="text-sm font-semibold">{chapter.title}</h4>
                   <Badge

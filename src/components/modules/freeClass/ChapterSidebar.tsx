@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -31,27 +31,79 @@ type ChapterSidebarProps = {
  * lists its topics as flat rows. The currently-playing topic is
  * highlighted so the student can see where they are in the course.
  *
- * All subjects start expanded. Each chapter header collapses its own
- * group's rows. Position state is local — we don't need to round-trip
- * it through the URL or Redux for this UI.
+ * Single-open accordion: at most one chapter is expanded at a time
+ * across the whole sidebar. Tapping a closed chapter closes the
+ * currently open one and opens the tapped one. Tapping the
+ * already-open chapter collapses it.
+ *
+ * On first load the first chapter is open so the page shows
+ * content immediately. The active topic's chapter is auto-opened
+ * the first time `activeTopicId` switches into a NEW chapter — so
+ * if the user is in chapter B and the player navigates them to a
+ * topic in chapter C, chapter C opens. But if the user then
+ * manually collapses C, the auto-open does NOT re-fire on every
+ * render: we only react to genuine transitions of `activeTopicId`,
+ * not to re-renders with the same value. (Without this guard the
+ * previous implementation kept popping chapters open every time
+ * the parent re-rendered, making the collapse action feel broken.)
  */
 const ChapterSidebar = ({
   subjects,
   activeTopicId,
   onSelectTopic,
 }: ChapterSidebarProps) => {
-  // Default-open state: every chapter is expanded by default so the
-  // student sees the full curriculum on first load. Stored as a Set
-  // of chapter ids.
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // `openId` is the SINGLE chapter currently expanded. `null` means
+  // every chapter is collapsed. State holds one id — that's the
+  // structural reason only one chapter can be open at a time.
+  const [openId, setOpenId] = useState<string | null>(null);
+  // Track the previous active topic so we only auto-open a chapter
+  // when the topic actually CHANGES, not on every parent re-render.
+  const lastActiveTopicIdRef = useRef<string | null | undefined>(undefined);
+  // Once `openId` has been seeded (either by user click or by the
+  // auto-open effect), don't reset it back to a "default" — the user
+  // has expressed intent and we should respect it.
+  const hasUserInteractedRef = useRef(false);
+
+  // Seed `openId` once the data is available. We do it in an effect
+  // (not in `useState`'s initializer) because the data loads async
+  // from RTK Query — on the very first render `subjects` is `[]`,
+  // and seeding from the empty array would give us `null` forever
+  // (the initializer only runs on first mount).
+  useEffect(() => {
+    if (hasUserInteractedRef.current) return;
+    if (openId !== null) return;
+    const first = subjects[0]?.chapters[0];
+    if (first) setOpenId(first.id);
+  }, [subjects, openId]);
+
+  // Auto-open the chapter that contains the active topic — but only
+  // when the active topic actually changes (the ref guard skips the
+  // effect on every parent re-render with the same topic). The
+  // user-interaction guard prevents the effect from undoing a
+  // manual collapse of the active chapter.
+  useEffect(() => {
+    if (hasUserInteractedRef.current) return;
+    if (!activeTopicId) return;
+    if (lastActiveTopicIdRef.current === activeTopicId) return;
+    lastActiveTopicIdRef.current = activeTopicId;
+    for (const s of subjects) {
+      for (const c of s.chapters) {
+        if (c.topics.some((t) => t.id === activeTopicId)) {
+          setOpenId(c.id);
+          return;
+        }
+      }
+    }
+  }, [activeTopicId, subjects]);
 
   const toggle = (id: string) => {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    hasUserInteractedRef.current = true;
+    // Tapping the already-open chapter collapses it; tapping any
+    // other chapter closes the current one and opens the tapped one.
+    // This is the only path that writes `openId` from a user click,
+    // and it always sets a single id — so the "one chapter open"
+    // invariant is structural, not policy.
+    setOpenId((prev) => (prev === id ? null : id));
   };
 
   // Flat list of all topics across all subjects — used by the
@@ -87,7 +139,7 @@ const ChapterSidebar = ({
             ) : (
               <div className="space-y-1">
                 {subject.chapters.map((chapter) => {
-                  const isOpen = !collapsed.has(chapter.id);
+                  const isOpen = openId === chapter.id;
                   return (
                     <div
                       key={chapter.id}
@@ -105,7 +157,13 @@ const ChapterSidebar = ({
                             <ChevronRight className="h-4 w-4 text-muted-foreground" />
                           )}
                           <span className="font-mono text-xs text-muted-foreground">
-                            Ch {chapter.chapterNumber}
+                            {/* Prefer the 1-based `chapterNumber` the
+                                admin entered. Legacy rows pre-dating the
+                                chapterNumber column fall back to
+                                `position` (the chapter form mirrors
+                                them to the same value, so this only
+                                diverges for very old rows). */}
+                            Ch {chapter.chapterNumber ?? chapter.position}
                           </span>
                           <span className="line-clamp-1">
                             {chapter.title}
@@ -131,9 +189,16 @@ const ChapterSidebar = ({
                                 <li key={topic.id}>
                                   <button
                                     type="button"
-                                    onClick={() =>
-                                      onSelectTopic(topic, chapter)
-                                    }
+                                    onClick={() => {
+                                      // Selecting a topic inside the
+                                      // currently-collapsed-but-clicked
+                                      // chapter is fine — the toggle
+                                      // above already opened it. We
+                                      // also make sure the parent sees
+                                      // the active topic for
+                                      // highlighting.
+                                      onSelectTopic(topic, chapter);
+                                    }}
                                     className={cn(
                                       "flex w-full items-start gap-2 rounded-md px-2 py-2 text-left text-xs transition",
                                       isActive

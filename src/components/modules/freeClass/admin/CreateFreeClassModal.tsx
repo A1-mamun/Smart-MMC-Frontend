@@ -221,8 +221,12 @@ const CreateFreeClassModal = ({
       if (res.success && res.data) {
         const resolvedChapter =
           res.data.chapter.title +
-          (res.data.chapter.position
-            ? ` (Chapter ${res.data.chapter.position})`
+          // Use the 1-based `chapterNumber` the admin entered (the
+          // form mirrors it into `position` for sort order, but
+          // `position` is the 1-based ordinal itself after the
+          // mirror, so either field reads back the same value here).
+          (res.data.chapter.chapterNumber
+            ? ` (Chapter ${res.data.chapter.chapterNumber})`
             : "");
         toast.success(
           `Added "${trimmedTopic}" to ${subjectName} → ${resolvedChapter}`,

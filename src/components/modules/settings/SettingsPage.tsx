@@ -1,12 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  Save,
-  Play,
-  Settings as SettingsIcon,
-  Loader2,
-} from "lucide-react";
+import { Save, Play, Settings as SettingsIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   Card,
@@ -116,7 +111,10 @@ const SettingsPage = () => {
   // Convenience setter scoped to the only remaining sub-config. The
   // absent-warning sub-config is no longer user-editable from this page.
   const setExam = (patch: Partial<TExamAbsenceConfig>) =>
-    setDraft((prev) => ({ ...prev, examAbsence: { ...prev.examAbsence, ...patch } }));
+    setDraft((prev) => ({
+      ...prev,
+      examAbsence: { ...prev.examAbsence, ...patch },
+    }));
 
   const handleSave = async () => {
     const patch = diffSettings(draft, serverConfig);
@@ -159,9 +157,9 @@ const SettingsPage = () => {
         </h2>
         <p className="text-sm text-muted-foreground">
           Configure system-wide SMS behaviour for exam-absence alerts. The
-          absent-on-class warning is automatic — it runs once per day and
-          sends an SMS to the student&apos;s father&apos;s mobile for any
-          student who had class today but didn&apos;t attend.
+          absent-on-class warning is automatic — it runs once per day and sends
+          an SMS to the student&apos;s father&apos;s mobile for any student who
+          had class today but didn&apos;t attend.
         </p>
       </div>
 
@@ -238,9 +236,7 @@ const SettingsPage = () => {
                 min={0}
                 max={23}
                 value={draft.examAbsence.hour}
-                onChange={(e) =>
-                  setExam({ hour: Number(e.target.value) || 0 })
-                }
+                onChange={(e) => setExam({ hour: Number(e.target.value) || 0 })}
               />
             </div>
             <div className="space-y-2">
@@ -265,15 +261,13 @@ const SettingsPage = () => {
                 rows={4}
                 maxLength={1600}
                 value={draft.examAbsence.message}
-                onChange={(e) =>
-                  setExam({ message: e.target.value })
-                }
+                onChange={(e) => setExam({ message: e.target.value })}
               />
               <p className="text-xs text-muted-foreground">
                 Placeholders: <code>{`{studentName}`}</code>,{" "}
-                <code>{`{examTitle}`}</code>,{" "}
-                <code>{`{examDate}`}</code> (YYYY-MM-DD).{" "}
-                {draft.examAbsence.message.length} / 1600 characters.
+                <code>{`{examTitle}`}</code>, <code>{`{examDate}`}</code>{" "}
+                (YYYY-MM-DD). {draft.examAbsence.message.length} / 1600
+                characters.
               </p>
             </div>
           </fieldset>
@@ -292,7 +286,7 @@ const SettingsPage = () => {
           )}
           Save settings
         </Button>
-        <Button
+        {/* <Button
           variant="outline"
           onClick={handleRunExamAbsence}
           disabled={isRunningExam}
@@ -303,7 +297,7 @@ const SettingsPage = () => {
             <Play className="mr-2 h-4 w-4" />
           )}
           Run exam-absence job now
-        </Button>
+        </Button> */}
       </div>
     </div>
   );

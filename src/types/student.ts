@@ -78,6 +78,20 @@ export type TCoursePaymentStatus = {
   status: TPaymentStatus;
 };
 
+/**
+ * All-time attendance counts surfaced on the Students list and the
+ * per-student attendance details page. `percentage` is rounded to
+ * the nearest integer (matches the badge in the Students list);
+ * clients that need more precision should re-compute from
+ * `present / total * 100`.
+ */
+export type TAttendanceSummary = {
+  total: number;
+  present: number;
+  absent: number;
+  percentage: number;
+};
+
 export type TStudent = {
   id: string;
   college?: string | null;
@@ -92,6 +106,17 @@ export type TStudent = {
     totalDue: number;
   };
   coursePaymentStatuses?: TCoursePaymentStatus[];
+  /**
+   * All-time attendance summary, computed server-side in
+   * `student.service.ts → getAllStudentsFromDB` via a single
+   * `attendance.groupBy` round-trip. The Students list renders
+   * the `percentage` directly (rounded to the nearest integer)
+   * and the per-status counts power the calendar details page.
+   * Optional because the backend only attaches it on the list
+   * endpoint — the per-student detail endpoint and the SMS picker
+   * pass through `attendance: TAttendance[]` instead.
+   */
+  attendanceSummary?: TAttendanceSummary;
   fatherName: string;
   fatherOccupation: string;
   fatherMobile: string;

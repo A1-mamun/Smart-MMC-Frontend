@@ -36,11 +36,11 @@ const InstructorSection = () => {
                 sizes="(max-width: 768px) 100vw, 40vw"
                 className="object-cover"
               />
-              <div className="absolute inset-0 bg-gradient-to-tr from-primary/30 via-transparent to-transparent" />
+              {/* <div className="absolute inset-0 bg-linear-to-tr from-primary/30 via-transparent to-transparent" />
               <div className="absolute bottom-4 left-4 flex items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-foreground shadow">
                 <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-500" />
                 <span>4.9 · Rated by guardians</span>
-              </div>
+              </div> */}
             </div>
 
             <div className="md:col-span-3 p-6 sm:p-10">
@@ -48,10 +48,10 @@ const InstructorSection = () => {
                 Lead Instructor &amp; Founder
               </p>
               <h3 className="mt-2 text-2xl font-bold sm:text-3xl">
-                Mohd Mehedi Hasan
+                Engr. Mohd Mehedi Hasan
               </h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                BSc in Computer Science &amp; Engineering · Rajshahi University of Engineering &amp; Technology (RUET)
+                BSc in CSE · RUET
               </p>
 
               <div className="mt-6 flex items-start gap-3 rounded-lg border bg-muted/40 p-4">

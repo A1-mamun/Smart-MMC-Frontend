@@ -84,19 +84,23 @@ export type TCurrentBatch =
 const attendanceApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     checkIn: build.mutation<TApiResponse<TCheckInResult>, { studentId: string; deviceId?: string }>({
-      query: (data) => ({
-        url: "/attendance/check-in",
-        method: "POST",
-        body: data,
-        // The /attendance/check-in endpoint is gated by the backend's
-        // DEVICE_SECRET — the barcode scanner page is opened on a
-        // shared kiosk so we can't reuse the admin's JWT. Pull the
-        // value from NEXT_PUBLIC_DEVICE_SECRET (must match backend .env).
-        headers: {
-          "x-device-secret":
-            process.env.NEXT_PUBLIC_DEVICE_SECRET || "",
-        },
-      }),
+      queryFn: async (data) => {
+        // Hit our own Next.js server-side proxy (see
+        // `app/api/scanner/check-in/route.ts`) instead of the backend
+        // directly. The proxy attaches the device secret from a
+        // server-only env var, so the secret never enters the client
+        // bundle. We use `queryFn` (not `query`) so the request
+        // bypasses `baseApi.baseUrl` (which points at the backend)
+        // and resolves against the current page origin instead.
+        const res = await fetch("/api/scanner/check-in", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(data),
+          credentials: "include",
+        });
+        const payload = await res.json();
+        return { data: payload as TApiResponse<TCheckInResult> };
+      },
       invalidatesTags: ["Attendance", "Dashboard"],
     }),
     manualCheckIn: build.mutation<TApiResponse<TCheckInResult>, { studentId: string; date?: string }>({
@@ -121,19 +125,22 @@ const attendanceApi = baseApi.injectEndpoints({
     }),
     /**
      * Live "what's happening right now" poll for the kiosk /
-     * automatic-attendance view. The endpoint is gated by the
-     * shared `x-device-secret` header (same as `/check-in`) so we
-     * can call it from the unauthenticated kiosk window without
-     * exposing it to the public internet.
+     * automatic-attendance view. Calls our own Next.js server-side
+     * proxy (see `app/api/scanner/current-batch/route.ts`); the
+     * proxy attaches the device secret from server-only env so it
+     * never enters the client bundle. Uses `queryFn` (not `query`)
+     * so the request bypasses `baseApi.baseUrl` (which points at
+     * the backend) and resolves against the current page origin.
      */
     getCurrentBatch: build.query<TApiResponse<TCurrentBatch>, void>({
-      query: () => ({
-        url: "/attendance/current-batch",
-        method: "GET",
-        headers: {
-          "x-device-secret": process.env.NEXT_PUBLIC_DEVICE_SECRET || "",
-        },
-      }),
+      queryFn: async () => {
+        const res = await fetch("/api/scanner/current-batch", {
+          method: "GET",
+          credentials: "include",
+        });
+        const payload = await res.json();
+        return { data: payload as TApiResponse<TCurrentBatch> };
+      },
     }),
     getStudentAttendance: build.query<TApiResponse<any>, { studentId: string; startDate?: string; endDate?: string; page?: number; limit?: number }>({
       query: ({ studentId, ...params }) => {

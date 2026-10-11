@@ -4,10 +4,11 @@
  * Free-class landing page — decides what to render based on the
  * current auth state:
  *
- *   - Free student already logged in (`user.isFreeAccount` truthy)
- *     → content (FreeClassViewer).
- *   - Logged in but NOT a free account (paid student, admin) →
- *     a CTA card linking to the dedicated signup page.
+ *   - Any signed-in user (free student, paid student, admin) →
+ *     content (FreeClassViewer). Free classes are open to every
+ *     signed-in user, so admins reviewing the content and paid
+ *     students previewing before signing up don't have to create
+ *     a separate free-class account.
  *   - Anonymous → soft loading splash while we wait for the
  *     proxy/server-side redirect to `/free-classes/signin` to
  *     land.
@@ -95,41 +96,14 @@ const FreeClassLanding = () => {
     );
   }
 
-  // Free student already signed up → straight to the content.
-  if (user.isFreeAccount) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <FreeClassViewer welcomeName={user.name} />
-      </div>
-    );
-  }
-
-  // Logged in but NOT a free account (paid student, admin) →
-  // show a short card with a CTA. We don't auto-redirect because
-  // the user might want to back out and use the dashboard instead.
+  // Any signed-in user — free student, paid student, or admin —
+  // gets straight to the content. Free classes are open to all
+  // signed-in users, so admins reviewing the curriculum and paid
+  // students previewing before signing up for the free program
+  // don't need a separate free-class account.
   return (
-    <div className="container mx-auto flex min-h-[calc(100vh-200px)] items-center justify-center px-4 py-12">
-      <Card className="w-full max-w-md border-2 shadow-xl">
-        <CardHeader className="space-y-2 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <Sparkles className="h-6 w-6" />
-          </div>
-          <CardTitle className="text-2xl">Free classes signup</CardTitle>
-          <CardDescription>
-            You&apos;re signed in to the dashboard, but you haven&apos;t signed
-            up for free classes yet. Free classes need their own account —
-            your mobile number is your login.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <a
-            href="/free-classes/signup"
-            className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            Sign up for free classes
-          </a>
-        </CardContent>
-      </Card>
+    <div className="container mx-auto px-4 py-8">
+      <FreeClassViewer welcomeName={user.name} />
     </div>
   );
 };

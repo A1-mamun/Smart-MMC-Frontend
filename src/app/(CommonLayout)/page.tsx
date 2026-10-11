@@ -10,7 +10,7 @@ const LandingPage = () => {
       <HeroCarousel />
       <InstructorSection />
       <SuccessGallery />
-      <ReviewsSection />
+      {/* <ReviewsSection /> */}
       <LocationContactSection />
     </>
   );

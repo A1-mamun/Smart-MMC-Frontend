@@ -1,0 +1,25 @@
+# Local dev artifacts that should never end up in the image.
+node_modules
+.next
+out
+Dockerfile
+Dockerfile.*
+
+# Local env files — secrets must come from `env_file` in compose, not
+# be baked into the image. The .env.local is the dev override Next.js
+# reads on the host.
+.env
+.env.local
+.env.*.local
+
+# Logs / TS caches.
+*.log
+*.tsbuildinfo
+
+# OS / editor noise.
+.DS_Store
+.git
+.gitignore
+.vscode
+.idea
+*.swp

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   Facebook,
-  GraduationCap,
   Instagram,
   Mail,
   MapPin,
@@ -10,6 +9,7 @@ import {
   Youtube,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import ThemeLogo from "./ThemeLogo";
 
 const QUICK_LINKS = [
   { label: "About Us", href: "#" },
@@ -36,15 +36,21 @@ const SOCIAL = [
 
 const Footer = () => {
   return (
-    <footer className="border-t bg-gradient-to-br from-primary/5 via-background to-background">
+    <footer className="border-t bg-linear-to-br from-primary/5 via-background to-background">
       <div className="container mx-auto px-4 py-14">
         <div className="grid gap-10 md:grid-cols-4">
           <div className="md:col-span-1">
-            <Link href="/" className="inline-flex items-center gap-2 font-semibold">
-              <GraduationCap className="h-5 w-5 text-primary" />
-              <span>MEHEDI MATH</span>
-            </Link>
-            <p className="mt-3 text-sm text-muted-foreground">
+            <div className="w-44 h-20 flex items-center justify-center rounded-lg -mt-4 -ml-3">
+              <Link
+                href="/"
+                aria-label="MEHEDI MATH home"
+                className="inline-block"
+              >
+                <ThemeLogo height={200} />
+              </Link>
+            </div>
+
+            <p className="mt-4 text-sm text-muted-foreground">
               A modern coaching ecosystem with NFC-powered attendance, payment
               transparency and guardian-first communication.
             </p>

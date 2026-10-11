@@ -1,6 +1,7 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut, Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Home, LogOut, Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { toast } from "sonner";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { logOut, useCurrentUser } from "@/redux/features/auth/authSlice";
@@ -84,6 +85,17 @@ const DashboardHeader = ({
 
       <div className="flex items-center gap-3">
         <ThemeToggle />
+        {/* "Home" jumps the user out of the dashboard to the public
+            landing page (`/`). The icon is the universally
+            recognised house; the label is hidden on small screens
+            to keep the header tight, matching the Logout button's
+            responsive pattern. */}
+        <Button variant="ghost" size="sm" asChild>
+          <Link href="/" aria-label="Go to home page" title="Go to home page">
+            <Home className="h-4 w-4" />
+            <span className="hidden sm:inline">Home</span>
+          </Link>
+        </Button>
         {user && (
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">

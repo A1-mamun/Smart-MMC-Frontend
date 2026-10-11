@@ -1,0 +1,66 @@
+# syntax=docker/dockerfile:1.7
+
+# Development image for the Next.js frontend. Single stage —
+# `next dev` (the `dev` script in package.json) provides on-demand
+# compilation and Hot Module Replacement.
+#
+# Source layout at runtime:
+#   - /app/src        ← bind-mount from host, HMR picks up edits
+#   - /app/public     ← bind-mount from host, static asset changes
+#                       are picked up on next request
+#   - /app/.next      ← named volume (NOT bind-mounted). macOS
+#                       bind-mounts make inotify-based file watchers
+#                       fall back to polling, which visibly slows
+#                       Next.js HMR. A named volume on the Docker
+#                       filesystem keeps the inotify event stream
+#                       intact.
+#   - /app/node_modules  ← named volume. The host's node_modules
+#                          (with macOS-arm64 binaries) would shadow
+#                          the Linux-x64 binaries inside the image
+#                          if we bind-mounted it.
+#
+# Production builds (with `output: 'standalone'` and `next start`)
+# live in the prod Dockerfile.
+
+FROM node:22-alpine
+RUN corepack enable
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml ./
+# `--allow-build=unrs-resolver` is the same whitelisting the
+# production Dockerfile uses (pnpm 12+ blocks this postinstall
+# by default with `ERR_PNPM_IGNORED_BUILDS`).
+RUN pnpm install --frozen-lockfile --allow-build=unrs-resolver
+
+# `next dev` auto-generates a `tsconfig.json` if one isn't present,
+# which would shadow the project tsconfig (with the `@/*` path
+# alias) baked into the host's bind-mount. Copy ours in so the
+# alias is honoured from the first dev run.
+#
+# We also copy the other root-level config files (next.config.ts,
+# postcss.config.mjs, eslint.config.mjs, components.json) — the
+# compose `volumes:` only bind-mounts `src/` and `public/`, so
+# anything at the project root needs to be in the image. These
+# rarely change day-to-day; a `docker compose build` re-copies
+# them when they do.
+COPY tsconfig.json ./
+COPY next.config.ts ./
+COPY postcss.config.mjs ./
+COPY eslint.config.mjs ./
+COPY components.json ./
+# `.env.local` is for the host's overrides; in the container the
+# equivalent values come from the compose `environment:` block
+# (DEVICE_SECRET, BACKEND_BASE_URL, NEXT_PUBLIC_BASE_API). Skipping
+# .env.local here keeps secrets out of the image.
+
+# `NEXT_PUBLIC_*` values are inlined into the client bundle at
+# build time. We bake them in now (during `docker build`) so a
+# fresh dev container works without re-passing args on every
+# `docker compose up`. The URL points at the host-mapped port
+# (5002) so the browser (running on the host) can reach the
+# backend.
+ARG NEXT_PUBLIC_BASE_API
+ENV NEXT_PUBLIC_BASE_API=$NEXT_PUBLIC_BASE_API
+
+# `pnpm dev` → `next dev` per package.json, with HMR enabled.
+CMD ["pnpm", "dev"]

@@ -15,6 +15,8 @@ import {
   Settings,
   PlayCircle,
   Gift,
+  Image as ImageIcon,
+  UserSquare,
 } from "lucide-react";
 
 export type NavItem = {
@@ -45,6 +47,12 @@ export const adminNavItems: NavItem[] = [
   // Sits next to the paid Students entry so admins can flip between
   // the two without leaving the sidebar.
   { label: "Free Students", href: "/dashboard/free-students", icon: Gift },
+  // Landing-page hero banners — admin uploads images to Cloudinary
+  // and the public home page carousel picks them up.
+  { label: "Banners", href: "/dashboard/banner", icon: ImageIcon },
+  // Landing-page "Hall of Fame" — admin adds alumni (name, institute,
+  // batch, photo) and the public home page grid picks them up.
+  { label: "Success Students", href: "/dashboard/success-students", icon: UserSquare },
   { label: "Admin Users", href: "/dashboard/users", icon: Shield, superAdminOnly: true },
 ];
 

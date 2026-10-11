@@ -1,15 +1,35 @@
-import { Clock, Mail, MapPin, MessageCircle, Phone, Send } from "lucide-react";
+import { Clock, ExternalLink, Mail, MapPin, MessageCircle, Phone, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
+// The actual coaching center location. The coordinates were resolved
+// from the Google Maps short link the admin shared. The "View on
+// Google Maps" link below points at the same place so visitors can
+// open it in the Google Maps app for turn-by-turn directions.
+const LOCATION = {
+  name: "Mehedi Math Care (Smart MMC)",
+  // Latitude / longitude of the place pin.
+  lat: 24.366527,
+  lng: 88.6006721,
+  // Google Maps place page — what the short link maps.app.goo.gl
+  // resolves to. Kept as a regular maps URL (not the short one) so
+  // it stays valid even if the short link expires.
+  googleMapsUrl:
+    "https://www.google.com/maps/place/Mehedi+Math+Care/@24.3665319,88.5980972,870m/data=!3m2!1e3!4b1!4m6!3m5!1s0x39fbef7791effb39:0xbd66a9751ed43db8!8m2!3d24.366527!4d88.6006721!16s%2Fg%2F11n7wcprbp",
+};
+
 const CONTACT_DETAILS = [
   {
     icon: MapPin,
     title: "Visit Us",
-    lines: ["Smart MMC Coaching Center", "Main Road, Boalia", "Rajshahi, Bangladesh"],
+    lines: [
+      LOCATION.name,
+      "Boalia, Rajshahi",
+      "Bangladesh",
+    ],
   },
   {
     icon: Phone,
@@ -47,17 +67,34 @@ const LocationContactSection = () => {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-5">
-          {/* Map */}
+          {/* Map — Google Maps embed (no API key required). We use
+              the `output=embed` endpoint which renders the standard
+              Google Maps interface WITH the red location pin at the
+              coordinates. The old OpenStreetMap embed only had a
+              small blue dot — the user wanted the iconic red pin
+              like Google Maps. */}
           <div className="lg:col-span-3">
             <Card className="overflow-hidden">
               <div className="relative h-72 sm:h-96 lg:h-full lg:min-h-[420px]">
                 <iframe
                   title="Smart MMC Location"
-                  src="https://www.openstreetmap.org/export/embed.html?bbox=88.5600%2C24.3500%2C88.6100%2C24.3900&amp;layer=mapnik&amp;marker=24.3740%2C88.5840"
+                  src={`https://maps.google.com/maps?q=${LOCATION.lat},${LOCATION.lng}&z=16&output=embed`}
                   className="absolute inset-0 h-full w-full border-0"
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
                 />
+                {/* Open in Google Maps button — sits on top of the
+                    embed so visitors can get turn-by-turn directions
+                    on their phone. */}
+                <a
+                  href={LOCATION.googleMapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-slate-900 shadow-md transition hover:bg-slate-50"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Open in Google Maps
+                </a>
               </div>
             </Card>
           </div>

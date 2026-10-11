@@ -82,6 +82,21 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* Page-level smooth scrolling. Without this, in-page anchor jumps
+   * (e.g. clicking a nav link that targets #section) snap
+   * instantly to the destination, which reads as a "flip" rather
+   * than a glide. `html` is the scroll container for the App
+   * Router, so the rule belongs here. The `prefers-reduced-motion`
+   * guard respects the OS-level "reduce motion" setting — users
+   * with vestibular sensitivity get the instant jump instead. */
+  html {
+    scroll-behavior: smooth;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-poppins), sans-serif;

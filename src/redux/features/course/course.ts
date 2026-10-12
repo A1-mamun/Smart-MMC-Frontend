@@ -1,6 +1,24 @@
 import { baseApi } from "@/redux/api/baseApi";
-import { TCourse, TCourseSeats, TCourseStatus } from "@/types/student";
+import {
+  TCourse,
+  TCourseSeats,
+  TCourseStatus,
+  TPublicCourseBatchDay,
+} from "@/types/student";
 import { TApiResponse } from "@/types/common";
+
+/**
+ * Public projection of a Course as returned by
+ * `GET /course/public/admission`. Distinct from `TCourse`
+ * (which is the admin / dashboard shape with internal fields
+ * like `completedBy`, `isAllowAdmitAnotherCourse`, etc.). Only
+ * the fields safe for a public landing page are included; the
+ * per-slot seat counts on `batchDays[].slots[]` come from a
+ * single `groupBy` against the StudentBatch table.
+ */
+export type TPublicCourse = Omit<TCourse, "batchDays" | "completedBy" | "isAllowAdmitAnotherCourse" | "completedAt"> & {
+  batchDays: TPublicCourseBatchDay[];
+};
 
 type TBatchDayInput = {
   // Optional id — when set, the backend updates this BatchDay in place
@@ -47,6 +65,24 @@ type TCourseInput = {
 
 const courseApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
+    /**
+     * Public list of admission-open courses for the landing page.
+     * No auth header, no params — the endpoint is hard-coded to
+     * return only `status = ADMISSION`, non-deleted courses. Cached
+     * server-side for 60s; this hook keeps the result in the RTK
+     * cache so navigating away and back doesn't refetch.
+     *
+     * The response uses the narrower `TPublicCourse` shape (no
+     * admin-only fields) and includes per-slot seat counts on
+     * `batchDays[].slots[]` so the landing page can show
+     * "X / Y seats — Full / Open" without a second round-trip.
+     */
+    getPublicAdmissionCourses: build.query<
+      TApiResponse<TPublicCourse[]>,
+      void
+    >({
+      query: () => ({ url: "/course/public/admission", method: "GET" }),
+    }),
     getAllCourses: build.query<TApiResponse<TCourse[]>, any>({
       query: (params) => {
         const query = new URLSearchParams();
@@ -247,6 +283,7 @@ const courseApi = baseApi.injectEndpoints({
 
 export const {
   useGetAllCoursesQuery,
+  useGetPublicAdmissionCoursesQuery,
   useGetCourseByIdQuery,
   useGetCourseSeatsQuery,
   useCreateCourseMutation,

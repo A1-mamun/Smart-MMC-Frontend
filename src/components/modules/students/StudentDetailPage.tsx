@@ -1,7 +1,8 @@
 "use client";
 import { use, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Wallet } from "lucide-react";
+import Link from "next/link";
+import { HandCoins, Wallet } from "lucide-react";
 import { useGetStudentByIdQuery, useDeleteStudentMutation } from "@/redux/features/student/student";
 import { useGetStudentPaymentsQuery } from "@/redux/features/payment/payment";
 import { Button } from "@/components/ui/button";
@@ -83,6 +84,22 @@ const StudentDetailPage = ({ params }: Props) => {
   const student = data.data;
   const summary = paymentData?.data?.summary || [];
   const payments = paymentData?.data?.payments || [];
+
+  // PP (referral) snapshot for this student. The backend already
+  // joined `pp` and `ppPayments` into the student detail payload
+  // (see student.service.ts `studentInclude`), so we compute the
+  // per-student "paid so far" inline rather than making a second
+  // request to the PP detail endpoint. This is the read-only
+  // view of the PP fee owed *for this student* — payouts are
+  // recorded on the PP detail page (single source of truth for
+  // the audit log), and once recorded they appear here.
+  const ppPayments = (student.ppPayments ?? []).filter(
+    (p) => p.studentId === student.id,
+  );
+  const ppPaidSoFar = ppPayments.reduce((s, p) => s + Number(p.amount), 0);
+  const ppFeeNum = student.ppFee != null ? Number(student.ppFee) : null;
+  const ppDue = ppFeeNum != null ? Math.max(0, ppFeeNum - ppPaidSoFar) : 0;
+  const pp = student.pp ?? null;
 
   const handleDelete = async () => {
     const ok = await confirm({
@@ -246,6 +263,115 @@ const StudentDetailPage = ({ params }: Props) => {
           )}
         </TabsContent>
         <TabsContent value="payments" className="space-y-3">
+          {/* PP (referral) section — read-only here. Renders only
+              when this student was admitted with a PP attached.
+              Shows the PP name, the per-student fee, how much has
+              been paid so far (sum of `ppPayments` linked to this
+              student), and the outstanding due. Payouts are
+              recorded on the PP detail page; this section just
+              surfaces the read-only view of those payouts for the
+              student. */}
+          {pp && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <HandCoins className="h-4 w-4 text-primary" />
+                  PP (Referral)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid gap-3 text-sm sm:grid-cols-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                      PP
+                    </p>
+                    <p className="mt-0.5 font-medium">
+                      <Link
+                        href={`/dashboard/pp`}
+                        className="text-primary hover:underline"
+                      >
+                        {pp.name}
+                      </Link>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                      Fee
+                    </p>
+                    <p className="mt-0.5 font-semibold">
+                      {ppFeeNum != null ? `৳${ppFeeNum.toLocaleString()}` : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                      Paid so far
+                    </p>
+                    <p className="mt-0.5 font-semibold">
+                      ৳{ppPaidSoFar.toLocaleString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                      Due
+                    </p>
+                    <p
+                      className={`mt-0.5 font-semibold ${
+                        ppDue > 0 ? "text-destructive" : "text-emerald-600"
+                      }`}
+                    >
+                      ৳{ppDue.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+                {ppPayments.length > 0 && (
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead className="text-right">Amount</TableHead>
+                          <TableHead>Method</TableHead>
+                          <TableHead>Paid by</TableHead>
+                          <TableHead>Note</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {ppPayments.map((p) => (
+                          <TableRow key={p.id}>
+                            <TableCell>
+                              {p.paidAt
+                                ? new Date(p.paidAt).toLocaleDateString()
+                                : "—"}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold">
+                              ৳{Number(p.amount).toLocaleString()}
+                            </TableCell>
+                            <TableCell>{p.method}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {p.paidByUser?.name ?? "—"}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {p.note || "—"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Payouts are recorded on the{" "}
+                  <Link
+                    href="/dashboard/pp"
+                    className="text-primary hover:underline"
+                  >
+                    PP management page
+                  </Link>
+                  .
+                </p>
+              </CardContent>
+            </Card>
+          )}
           {summary.length > 0 && (
             <div className="grid gap-3 md:grid-cols-3">
               {summary.map((s) => (

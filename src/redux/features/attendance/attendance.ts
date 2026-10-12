@@ -3,7 +3,10 @@ import { TAttendanceWithStudent } from "@/types/student";
 import { TApiResponse } from "@/types/common";
 
 type TCheckInResult = {
-  student: { studentId: string; name: string; nickname?: string | null };
+  // `mobile` is the per-account login identifier (replaces the dropped
+  // `User.studentId`). For per-enrollment display, callers can join on
+  // student.studentCourses[].studentCourseId instead.
+  student: { mobile: string; name: string; nickname?: string | null };
   attendanceId: string;
   /**
    * The day the attendance row was stamped for — the student's

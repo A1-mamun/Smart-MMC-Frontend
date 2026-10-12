@@ -73,6 +73,73 @@ export type TRunExamAbsenceWarningResult = {
 };
 
 /**
+ * Single stat line on the public landing-page instructor
+ * section (e.g. "10+" / "Years Teaching"). The `value` is a
+ * freeform short string the super admin enters verbatim — the
+ * shape mirrors the backend `instructorStatSchema` in
+ * `settings.validation.ts`.
+ */
+export type TInstructorStat = {
+  value: string;
+  label: string;
+};
+
+/**
+ * Full instructor-section config as returned by
+ * `GET /api/v1/settings/public/instructor-section` (public
+ * landing page) and `PUT /api/v1/settings/instructor-section`
+ * (super-admin Settings page).
+ *
+ * `quote` is an optional pull-quote rendered under the
+ * lead-instructor name. `null` / missing / empty string all
+ * mean "don't render the quote block at all" — the server
+ * normalises "" to null on write so the public endpoint can
+ * distinguish "never set" from "explicitly cleared".
+ */
+export type TInstructorSection = {
+  stats: TInstructorStat[];
+  quote?: string | null;
+};
+
+/**
+ * PATCH shape for the super-admin upsert. The server merges
+ * with the stored row + re-validates.
+ *
+ * `quote` uses `.nullish()` semantics: a `null` or empty
+ * string CLEARS the stored quote (the landing page then omits
+ * the block); to keep the current value, simply omit the
+ * field from the patch. The Settings form sends an empty
+ * string for the "clear" action.
+ */
+export type TInstructorSectionPatch = Partial<{
+  stats: TInstructorStat[];
+  quote?: string | null;
+}>;
+
+/**
+ * Frontend mirror of `DEFAULT_INSTRUCTOR_SECTION` on the
+ * backend — what the landing page shows before the super admin
+ * has saved anything. Kept in sync with the backend so the
+ * first deploy renders the same numbers even when the Setting
+ * row hasn't been written yet (and so the form can show
+ * sensible defaults while the GET is in-flight).
+ */
+export const DEFAULT_INSTRUCTOR_STATS: TInstructorStat[] = [
+  { value: '10+', label: 'Years Teaching' },
+  { value: '10000+', label: 'Students Mentored' },
+  { value: '2000+', label: 'Placed to Top Universities' },
+];
+
+export const DEFAULT_INSTRUCTOR_SECTION: TInstructorSection = {
+  stats: DEFAULT_INSTRUCTOR_STATS,
+  // Mirrors the backend default so the first paint matches
+  // the historical copy until the super admin edits it.
+  // Set to `null` to hide the quote block entirely.
+  quote:
+    "Education isn't about memorising answers — it's about building thinkers. Every student who walks in here deserves a teacher who believes in them first.",
+};
+
+/**
  * Pre-baked defaults — the backend returns these too when no row has
  * ever been written. We keep a frontend copy so the form can render
  * sensible values before the GET round-trips.

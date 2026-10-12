@@ -40,7 +40,7 @@ const HeroCarousel = () => {
   const isInViewRef = useRef(true);
 
   // Watch the section's visibility. We use `isIntersecting` to
-  // gate the auto-cycle below — the carousel is large (h-680px on
+  // gate the auto-cycle below — the carousel is large (h-[820px] on
   // desktop) and the auto-cycle every 6s is visually distracting
   // once the user has scrolled past it.
   useEffect(() => {
@@ -92,14 +92,14 @@ const HeroCarousel = () => {
   if (isLoading) {
     return (
       <section className="relative overflow-hidden">
-        <Skeleton className="h-[560px] w-full sm:h-[620px] lg:h-[680px]" />
+        <Skeleton className="h-[540px] w-full sm:h-[640px] lg:h-[750px]" />
       </section>
     );
   }
 
   return (
     <section ref={sectionRef} className="relative overflow-hidden">
-      <div className="relative h-[560px] sm:h-[620px] lg:h-[680px]">
+      <div className="relative h-[540px] sm:h-[640px] lg:h-[750px]">
         {banners.map((banner, index) => (
           <div
             key={banner.id}

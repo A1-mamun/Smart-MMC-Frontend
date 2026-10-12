@@ -1544,6 +1544,7 @@ import {
   useEnrollExistingStudentMutation,
   useGetAllStudentsQuery,
 } from "@/redux/features/student/student";
+import { useGetActivePpsQuery } from "@/redux/features/pp/pp.api";
 import RecordPaymentModal from "@/components/modules/payments/RecordPaymentModal";
 import PaymentReceiptView from "@/components/modules/payments/PaymentReceiptView";
 import { useAppSelector } from "@/redux/hooks";
@@ -1594,6 +1595,17 @@ const optionalPhoneFormat = () =>
 
 const buildSchema = (mode: "new" | "existing") => {
   return z.object({
+    // Only the four truly load-bearing fields are required:
+    //   - name + mobile  (identity / login credential)
+    //   - courseId + batchDayId + batchTime  (the actual admission)
+    // Everything else — father info, address, SSC details, mother,
+    // college, nickname — is optional. The admission desk
+    // frequently takes students with incomplete profiles (walk-
+    // ins, certificate not on hand, single-parent households, etc.)
+    // and the missing fields can be back-filled later from the
+    // student detail page. Format validation (BD mobile regex,
+    // 4-digit year, 0–5 GPA) still runs when a value IS entered,
+    // so a typo doesn't slip through.
     name: requiredInNewMode(2, "Name is required")(mode),
     nickname: optionalBounded(60, "Nickname is too long (max 60 characters)"),
     college: optionalBounded(
@@ -1607,14 +1619,14 @@ const buildSchema = (mode: "new" | "existing") => {
       message: "Invalid BD mobile number",
     }),
     bloodGroup: z.string().nullable().optional(),
-    fatherName: requiredInNewMode(2, "Father name is required")(mode),
-    fatherOccupation: requiredInNewMode(2, "Required")(mode),
-    fatherMobile: requiredInNewMode(
-      11,
-      "Father mobile is required",
-    )(mode).refine((v) => isBlank(v) || phoneRegex.test(v as string), {
-      message: "Invalid BD mobile number",
-    }),
+    ppId: z.string().nullable().optional(),
+    ppFee: z.coerce.number().min(0).nullable().optional(),
+    fatherName: optionalBounded(100, "Father name is too long (max 100 characters)"),
+    fatherOccupation: optionalBounded(
+      100,
+      "Father occupation is too long (max 100 characters)",
+    ),
+    fatherMobile: optionalPhoneFormat(),
     motherName: optionalBounded(
       80,
       "Mother name is too long (max 80 characters)",
@@ -1632,9 +1644,18 @@ const buildSchema = (mode: "new" | "existing") => {
       80,
       "Post office name is too long (max 80 characters)",
     ),
-    addressUpozila: requiredInNewMode(1, "Required")(mode),
-    addressDistrict: requiredInNewMode(1, "Required")(mode),
-    sscInstitute: requiredInNewMode(1, "Required")(mode),
+    addressUpozila: optionalBounded(
+      100,
+      "Upazila name is too long (max 100 characters)",
+    ),
+    addressDistrict: optionalBounded(
+      100,
+      "District name is too long (max 100 characters)",
+    ),
+    sscInstitute: optionalBounded(
+      200,
+      "Institute name is too long (max 200 characters)",
+    ),
     sscBoard: z.string().nullable().optional(),
     sscPassingYear: z
       .string()
@@ -1675,7 +1696,19 @@ const buildSchema = (mode: "new" | "existing") => {
   });
 };
 
-type FormData = z.infer<ReturnType<typeof buildSchema>>;
+// `z.infer<>` collapses the schema's input and output types into
+// one. With `z.coerce.number()` they differ — the input is
+// `unknown` (anything the user types), the output is `number`.
+// RHF's 3-generic `useForm<TFieldValues, TContext, TTransformedValues>`
+// is happy with a single combined type, but zodResolver is not
+// (it strictly enforces input ≠ output when they differ). We
+// therefore pass the input type to the resolver, the output type
+// to the form's `onSubmit` handler, and keep `FormData` for the
+// form's own type so defaultValues stay in the "output" world
+// (numbers, not strings).
+type FormInput = z.input<ReturnType<typeof buildSchema>>;
+type FormOutput = z.output<ReturnType<typeof buildSchema>>;
+type FormData = FormOutput;
 
 const AdmitStudentForm = () => {
   const router = useRouter();
@@ -1693,6 +1726,13 @@ const AdmitStudentForm = () => {
     limit: 100,
   });
   const courses = useMemo(() => coursesData?.data || [], [coursesData]);
+  // PP roster (id + name only) — used by the admit form's PP
+  // select. The query is admin-scoped and 60s-cached server-
+  // side; new PPs become selectable within a minute of being
+  // added (or immediately if the create mutation invalidates
+  // the "PP"/"ACTIVE" tags — see pp.api.ts).
+  const { data: ppsData } = useGetActivePpsQuery();
+  const pps = useMemo(() => ppsData?.data ?? [], [ppsData]);
   const [successState, setSuccessState] = useState<{
     student: TStudent;
     credentials: TStudentCredentials;
@@ -1764,7 +1804,7 @@ const AdmitStudentForm = () => {
     trigger,
     clearErrors,
     formState: { errors },
-  } = useForm<FormData, any, FormData>({
+  } = useForm<FormInput, unknown, FormOutput>({
     // ── FIX: use "onTouched" so errors only appear after the user
     // has interacted with a field (or after submit), and "onChange"
     // re-validation clears them the moment the value becomes valid.
@@ -1780,6 +1820,8 @@ const AdmitStudentForm = () => {
       college: "",
       mobile: "",
       bloodGroup: undefined,
+      ppId: null,
+      ppFee: null,
       fatherName: "",
       fatherOccupation: "",
       fatherMobile: "",
@@ -1815,6 +1857,12 @@ const AdmitStudentForm = () => {
 
   const selectedCourseId = watch("courseId");
   const selectedBatchDayId = watch("batchDayId");
+  // Show the PP-fee input only when a PP is picked. Reuses the
+  // sentinel "no selection" approach: an empty/blank string or
+  // null both mean "no PP chosen".
+  const selectedPpId = watch("ppId");
+  const ppIdSelected =
+    typeof selectedPpId === "string" && selectedPpId.length > 0;
   const selectedCourse = useMemo(
     () => courses.find((c) => c.id === selectedCourseId) || null,
     [courses, selectedCourseId],
@@ -1881,7 +1929,7 @@ const AdmitStudentForm = () => {
     }
   };
 
-  const onSubmit = async (data: FormData) => {
+  const onSubmit = async (data: FormOutput) => {
     // Mark that the user has attempted a submit — from now on, mode
     // flips will trigger a re-validation pass.
     hasSubmittedRef.current = true;
@@ -1913,6 +1961,8 @@ const AdmitStudentForm = () => {
           courseId: data.courseId,
           batchDayId: data.batchDayId,
           batchTime: data.batchTime,
+          ppId: data.ppId ?? null,
+          ppFee: data.ppId ? (data.ppFee ?? null) : null,
         }).unwrap();
         if (res.success && res.data?.student && res.data?.credentials) {
           setSuccessState({
@@ -1943,6 +1993,8 @@ const AdmitStudentForm = () => {
         college: data.college || undefined,
         mobile: data.mobile,
         bloodGroup: data.bloodGroup || null,
+        ppId: data.ppId ?? null,
+        ppFee: data.ppId ? (data.ppFee ?? null) : null,
         fatherName: data.fatherName,
         fatherOccupation: data.fatherOccupation,
         fatherMobile: data.fatherMobile,
@@ -2355,6 +2407,84 @@ const AdmitStudentForm = () => {
                     </p>
                   )}
                 </div>
+                <div className="space-y-2">
+                  <Label>PP (referrer)</Label>
+                  <Controller
+                    control={control}
+                    name="ppId"
+                    render={({ field }) => (
+                      <Select
+                        onValueChange={(v) =>
+                          field.onChange(v === "__none__" ? null : v)
+                        }
+                        value={field.value ?? "__none__"}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="No PP" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— No PP —</SelectItem>
+                          {pps.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {errors.ppId && (
+                    <p className="text-sm text-destructive">
+                      {errors.ppId.message}
+                    </p>
+                  )}
+                </div>
+                {ppIdSelected && (
+                  <div className="space-y-2">
+                    <Label htmlFor="ppFee">PP Fee (৳)</Label>
+                    <Controller
+                      control={control}
+                      name="ppFee"
+                      render={({ field }) => (
+                        <Input
+                          id="ppFee"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="e.g. 500"
+                          // z.coerce.number() makes the schema's input
+                          // type `unknown`, so the Controller field's
+                          // value is `unknown` here — coerce to a number
+                          // (or empty string for empty input) for the
+                          // controlled input.
+                          value={
+                            field.value === null || field.value === undefined
+                              ? ""
+                              : typeof field.value === "number"
+                                ? field.value
+                                : typeof field.value === "string"
+                                  ? field.value
+                                  : ""
+                          }
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            if (raw === "") {
+                              field.onChange(null);
+                              return;
+                            }
+                            const n = Number(raw);
+                            field.onChange(Number.isFinite(n) ? n : null);
+                          }}
+                        />
+                      )}
+                    />
+                    {errors.ppFee && (
+                      <p className="text-sm text-destructive">
+                        {errors.ppFee.message}
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="college">College</Label>
                   <Input id="college" {...register("college")} />
@@ -2373,7 +2503,7 @@ const AdmitStudentForm = () => {
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="fatherName">Father Name *</Label>
+                  <Label htmlFor="fatherName">Father Name</Label>
                   <Input id="fatherName" {...register("fatherName")} />
                   {errors.fatherName && (
                     <p className="text-sm text-destructive">
@@ -2382,7 +2512,7 @@ const AdmitStudentForm = () => {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="fatherOccupation">Father Occupation *</Label>
+                  <Label htmlFor="fatherOccupation">Father Occupation</Label>
                   <Input
                     id="fatherOccupation"
                     {...register("fatherOccupation")}
@@ -2394,7 +2524,7 @@ const AdmitStudentForm = () => {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="fatherMobile">Father Mobile *</Label>
+                  <Label htmlFor="fatherMobile">Father Mobile</Label>
                   <Input
                     id="fatherMobile"
                     {...register("fatherMobile")}
@@ -2470,7 +2600,7 @@ const AdmitStudentForm = () => {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="addressUpozila">Upazila *</Label>
+                  <Label htmlFor="addressUpozila">Upazila</Label>
                   <Input id="addressUpozila" {...register("addressUpozila")} />
                   {errors.addressUpozila && (
                     <p className="text-sm text-destructive">
@@ -2479,7 +2609,7 @@ const AdmitStudentForm = () => {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="addressDistrict">District *</Label>
+                  <Label htmlFor="addressDistrict">District</Label>
                   <Input
                     id="addressDistrict"
                     {...register("addressDistrict")}
@@ -2499,7 +2629,7 @@ const AdmitStudentForm = () => {
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="sscInstitute">Institute *</Label>
+                  <Label htmlFor="sscInstitute">Institute</Label>
                   <Input id="sscInstitute" {...register("sscInstitute")} />
                   {errors.sscInstitute && (
                     <p className="text-sm text-destructive">

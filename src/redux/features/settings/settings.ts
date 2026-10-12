@@ -3,11 +3,15 @@ import { TApiResponse } from "@/types/common";
 import {
   TSettingsConfig,
   TSettingsConfigPatch,
+  TInstructorSection,
+  TInstructorSectionPatch,
   TRunExamAbsenceWarningResult,
 } from "@/types/settings";
 
 /**
- * Settings slice — three endpoints, all under /api/v1/settings:
+ * Settings slice — five endpoints, all under /api/v1/settings:
+ *   GET  /public/instructor-section    → public landing-page stats
+ *   PUT  /instructor-section           → super-admin-only update
  *   GET  /config                       → current configs (cached 60s)
  *   PUT  /config                       → super-admin-only update
  *   POST /exam-absence/run             → any admin can fire exam-absence run
@@ -18,9 +22,11 @@ import {
  * available at /api/v1/settings/absent-warning/run for an admin escape
  * hatch via curl / Postman.)
  *
- * The "Settings" tag is the only invalidation source: when a config is
- * patched, every dependent query (the settings page itself, the cron
- * status banner) refetches.
+ * Tagging:
+ *   - "Settings"           → invalidates exam-absence config queries
+ *   - "InstructorSection"  → invalidates the public landing-page
+ *     read AND the admin form so a super-admin save immediately
+ *     refetches both views
  */
 const settingsApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
@@ -42,6 +48,27 @@ const settingsApi = baseApi.injectEndpoints({
       query: () => ({ url: "/settings/exam-absence/run", method: "POST" }),
       invalidatesTags: ["Settings"],
     }),
+    getInstructorSection: build.query<
+      TApiResponse<TInstructorSection>,
+      void
+    >({
+      query: () => ({
+        url: "/settings/public/instructor-section",
+        method: "GET",
+      }),
+      providesTags: ["InstructorSection"],
+    }),
+    updateInstructorSection: build.mutation<
+      TApiResponse<TInstructorSection>,
+      TInstructorSectionPatch
+    >({
+      query: (body) => ({
+        url: "/settings/instructor-section",
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["InstructorSection"],
+    }),
   }),
 });
 
@@ -49,4 +76,6 @@ export const {
   useGetSettingsQuery,
   useUpdateSettingsMutation,
   useRunExamAbsenceWarningNowMutation,
+  useGetInstructorSectionQuery,
+  useUpdateInstructorSectionMutation,
 } = settingsApi;

@@ -28,9 +28,11 @@ import { TStudent } from "@/types/student";
  * Result of one scanner / manual check-in. Mirrors the backend's
  * `checkInStudentToDB` / `manualCheckInToDB` return shape — the
  * `dueAmount` is what powers the "Fully paid" / "Has due" badge.
+ * `mobile` is the per-account login identifier (replaces the
+ * dropped `User.studentId`).
  */
 type TCheckInResult = {
-  studentId: string;
+  mobile: string;
   name: string;
   nickname?: string | null;
   attendanceId: string;
@@ -135,9 +137,11 @@ const ManualCheckInPage = () => {
    */
   const playTone = (kind: "ok" | "err") => {
     try {
-      const ctx = new (window.AudioContext ||
+      const ctx = new (
+        window.AudioContext ||
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (window as any).webkitAudioContext)();
+        (window as any).webkitAudioContext
+      )();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
@@ -155,59 +159,63 @@ const ManualCheckInPage = () => {
     }
   };
 
-  const handleScanSubmit = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    const code = scannerInput.trim();
-    if (!code) return;
-    try {
-      const res = await checkIn({ studentId: code }).unwrap();
-      if (res.success && res.data) {
-        const d = res.data;
-        const entry: TCheckInResult = {
-          studentId: d.student.studentId,
-          name: d.student.name,
-          nickname: d.student.nickname,
-          attendanceId: d.attendanceId,
-          date: d.date,
-          checkInAt: d.checkInAt,
-          method: d.method,
-          isFirstCheckIn: d.isFirstCheckIn,
-          courseNames: d.courseNames,
-          dueAmount: d.dueAmount,
-          message: d.message,
-        };
-        setLastScan(entry);
-        setFeed((prev) => [
-          {
-            studentId: entry.studentId,
-            name: entry.name,
-            studentCode: entry.studentId,
-            dueAmount: entry.dueAmount,
-            courseNames: entry.courseNames,
-            isFirstCheckIn: entry.isFirstCheckIn,
-            method: entry.method,
-            at: entry.checkInAt,
-          },
-          ...prev.filter((p) => p.studentCode !== entry.studentId),
-        ]);
-        playTone("ok");
-        toast.success(
-          entry.dueAmount > 0
-            ? `${entry.name} · due ${formatTaka(entry.dueAmount)}`
-            : `${entry.name} · fully paid`,
-        );
-      }
-    } catch (err) {
-      const message =
-        (err as { data?: { message?: string } })?.data?.message ||
-        "Scan failed";
-      toast.error(message);
-      playTone("err");
-    } finally {
-      setScannerInput("");
-      scannerRef.current?.focus();
-    }
-  };
+  // const handleScanSubmit = async (e?: React.FormEvent) => {
+  //   e?.preventDefault();
+  //   const code = scannerInput.trim();
+  //   if (!code) return;
+  //   try {
+  //     const res = await checkIn({ studentId: code }).unwrap();
+  //     if (res.success && res.data) {
+  //       const d = res.data;
+  //       // Backend returns `student: { mobile, name, nickname }` —
+  //       // there's no `studentId` field. Mobile is the per-account
+  //       // identifier after the legacy `User.studentId` was dropped.
+  //       const studentCode = d.student.mobile;
+  //       const entry: TCheckInResult = {
+  //         studentId: studentCode,
+  //         name: d.student.name,
+  //         nickname: d.student.nickname,
+  //         attendanceId: d.attendanceId,
+  //         date: d.date,
+  //         checkInAt: d.checkInAt,
+  //         method: d.method,
+  //         isFirstCheckIn: d.isFirstCheckIn,
+  //         courseNames: d.courseNames,
+  //         dueAmount: d.dueAmount,
+  //         message: d.message,
+  //       };
+  //       setLastScan(entry);
+  //       setFeed((prev) => [
+  //         {
+  //           studentId: studentCode,
+  //           name: entry.name,
+  //           studentCode,
+  //           dueAmount: entry.dueAmount,
+  //           courseNames: entry.courseNames,
+  //           isFirstCheckIn: entry.isFirstCheckIn,
+  //           method: entry.method,
+  //           at: entry.checkInAt,
+  //         },
+  //         ...prev.filter((p) => p.studentCode !== studentCode),
+  //       ]);
+  //       playTone("ok");
+  //       toast.success(
+  //         entry.dueAmount > 0
+  //           ? `${entry.name} · due ${formatTaka(entry.dueAmount)}`
+  //           : `${entry.name} · fully paid`,
+  //       );
+  //     }
+  //   } catch (err) {
+  //     const message =
+  //       (err as { data?: { message?: string } })?.data?.message ||
+  //       "Scan failed";
+  //     toast.error(message);
+  //     playTone("err");
+  //   } finally {
+  //     setScannerInput("");
+  //     scannerRef.current?.focus();
+  //   }
+  // };
 
   const handleManualCheckIn = async (student: TStudent) => {
     setCheckingId(student.id);
@@ -215,23 +223,26 @@ const ManualCheckInPage = () => {
       const res = await manualCheckIn({ studentId: student.id }).unwrap();
       if (res.success && res.data) {
         const d = res.data;
+        // Same backend shape: `student: { mobile, name, nickname }`.
+        // Manual path doesn't compute `dueAmount` server-side, so we
+        // default to 0 — the "Due" badge stays hidden for manual
+        // entries (admin isn't gating on payment status here).
+        const studentCode = d.student.mobile;
         setFeed((prev) => [
           {
-            studentId: d.student.studentId,
+            studentId: studentCode,
             name: d.student.name,
-            studentCode: d.student.studentId,
-            dueAmount: d.dueAmount,
+            studentCode,
+            dueAmount: 0,
             courseNames: d.courseNames,
             isFirstCheckIn: d.isFirstCheckIn,
             method: d.method,
             at: d.checkInAt,
           },
-          ...prev.filter(
-            (p) => p.studentCode !== d.student.studentId,
-          ),
+          ...prev.filter((p) => p.studentCode !== studentCode),
         ]);
         setLastScan({
-          studentId: d.student.studentId,
+          mobile: studentCode,
           name: d.student.name,
           nickname: d.student.nickname,
           attendanceId: d.attendanceId,
@@ -240,7 +251,7 @@ const ManualCheckInPage = () => {
           method: d.method,
           isFirstCheckIn: d.isFirstCheckIn,
           courseNames: d.courseNames,
-          dueAmount: d.dueAmount,
+          dueAmount: 0,
           message: d.message,
         });
         toast.success(d.message);
@@ -277,23 +288,20 @@ const ManualCheckInPage = () => {
       </div>
 
       {/* Scanner card — receives focus on mount + after every scan. */}
-      <Card>
+      {/* <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <ScanLine className="h-4 w-4" />
             Scan barcode
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Most USB barcode scanners act as a keyboard — just point and
-            shoot. The scanner input receives focus automatically after each
-            successful scan.
+            Most USB barcode scanners act as a keyboard — just point and shoot.
+            The scanner input receives focus automatically after each successful
+            scan.
           </p>
         </CardHeader>
         <CardContent>
-          <form
-            onSubmit={handleScanSubmit}
-            className="flex gap-2"
-          >
+          <form onSubmit={handleScanSubmit} className="flex gap-2">
             <Input
               ref={scannerRef}
               value={scannerInput}
@@ -316,7 +324,7 @@ const ManualCheckInPage = () => {
             </Button>
           </form>
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Last-scan card — the headline feedback after each successful
           scan. Shows payment status prominently. */}
@@ -348,7 +356,7 @@ const ManualCheckInPage = () => {
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground font-mono mt-1">
-                  {lastScan.studentId}
+                  {lastScan.mobile}
                   {lastScan.courseNames.length > 0
                     ? ` · ${lastScan.courseNames.join(", ")}`
                     : ""}

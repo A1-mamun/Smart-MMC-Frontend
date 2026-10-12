@@ -758,7 +758,8 @@ const formatCourseName = (name: string) => {
     HSC_1ST_YEAR: "HSC 1st Year",
     HSC_2ND_YEAR: "HSC 2nd Year",
     HSC_FINAL_PREPARATION: "HSC Final Preparation",
-    ADMISSION: "Admission",
+    ADVANCED_ADMISSION: "Advanced Admission",
+    ENGINEERING_AND_VARSITY_ADMISSION: "Engineering & Varsity Admission",
   };
   return map[name] || name;
 };

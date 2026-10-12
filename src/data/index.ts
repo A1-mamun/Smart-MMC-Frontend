@@ -17,6 +17,7 @@ import {
   Gift,
   Image as ImageIcon,
   UserSquare,
+  HandCoins,
 } from "lucide-react";
 
 export type NavItem = {
@@ -53,6 +54,11 @@ export const adminNavItems: NavItem[] = [
   // Landing-page "Hall of Fame" — admin adds alumni (name, institute,
   // batch, photo) and the public home page grid picks them up.
   { label: "Success Students", href: "/dashboard/success-students", icon: UserSquare },
+  // PP (referral) roster. Admin-curated list of referrers with
+  // a payout ledger for the money owed to them. HandCoins
+  // (verified available in lucide-react@0.525.0) reads as
+  // "payouts to a person" — clearer than UserPlus or Contact.
+  { label: "PP", href: "/dashboard/pp", icon: HandCoins },
   { label: "Admin Users", href: "/dashboard/users", icon: Shield, superAdminOnly: true },
 ];
 

@@ -25,7 +25,8 @@ export type TCourseName =
   | "HSC_1ST_YEAR"
   | "HSC_2ND_YEAR"
   | "HSC_FINAL_PREPARATION"
-  | "ADMISSION";
+  | "ADVANCED_ADMISSION"
+  | "ENGINEERING_AND_VARSITY_ADMISSION";
 export type TBatchDay = string;
 export type TBatchTime = string;
 
@@ -138,6 +139,26 @@ export type TStudent = {
   batches?: TStudentBatch[];
   payments?: TPayment[];
   attendance?: TAttendance[];
+  // PP (referral) linkage. All optional because most students
+  // have no PP. `pp` is the hydrated referrer row (id + name)
+  // for display; `ppId` is the bare FK for the admit form to
+  // round-trip; `ppFee` is the per-student commission owed. The
+  // payout history for this student lives in `ppPayments`,
+  // sorted newest first by the backend.
+  pp?: { id: string; name: string } | null;
+  ppId?: string | null;
+  ppFee?: number | null;
+  ppPayments?: Array<{
+    id: string;
+    ppId: string;
+    studentId: string | null;
+    amount: number;
+    method: "CASH" | "BKASH" | "NAGAD" | "BANK" | "OTHER";
+    paidAt: string;
+    paidBy: string;
+    note: string | null;
+    paidByUser?: { id: string; name: string };
+  }>;
 };
 
 // Course lifecycle stages — drives the Courses page badge color and
@@ -222,6 +243,36 @@ export type TCourseBatchDay = {
    */
   manualWindowOverride?: boolean[];
   position: number;
+};
+
+/**
+ * Public-shaped projection of a single (course, batchDay) pair as
+ * returned by `GET /course/public/admission`. Distinct from
+ * `TCourseBatchDay` (the dashboard / admit form use the full
+ * shape with admin-only flags); the public shape hides
+ * `slotStates` / `manualWindowOverride` and exposes per-slot
+ * seat counts so the landing page can show "X / Y seats — Full /
+ * Open" without a second round-trip.
+ *
+ * `capacity` is `Course.totalSeats` (the per-slot cap). NULL on
+ * the course row means "uncapped" and is propagated as
+ * `capacity: null` here so the landing page can render "Open"
+ * without a misleading "0 / 0" pill.
+ */
+export type TPublicBatchSlot = {
+  time: string;
+  enrolled: number;
+  capacity: number | null;
+  isFull: boolean;
+};
+
+export type TPublicCourseBatchDay = {
+  id: string;
+  name: string | null;
+  days: string[];
+  times: string[];
+  durationMinutes: number;
+  slots: TPublicBatchSlot[];
 };
 
 /**
@@ -319,6 +370,12 @@ export type TAdmitStudentPayload = {
   courseId: string;
   batchDayId: string;
   batchTime: TBatchTime;
+  // PP (referral) linkage. Both optional — most admits have no
+  // PP. When `ppId` is set, `ppFee` should be set too (the form
+  // gates the fee input on PP selection). The server re-validates
+  // and rejects positive ppFee with null ppId.
+  ppId?: string | null;
+  ppFee?: number | null;
 };
 
 /**
@@ -336,6 +393,12 @@ export type TEnrollExistingStudentPayload = {
   // Optional — admins occasionally want to correct a nickname without
   // going through the full student-edit flow.
   nickname?: string;
+  // Optional — PP (referral) linkage. Same semantics as on
+  // TAdmitStudentPayload: ppId is the PP, ppFee is the amount
+  // committed for *this* student. When ppId is null, the student
+  // is enrolled with no referrer (the default).
+  ppId?: string | null;
+  ppFee?: number | null;
 };
 
 export type TStudentQuery = {

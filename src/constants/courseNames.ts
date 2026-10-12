@@ -2,7 +2,8 @@ export const courseNames = [
   { value: "HSC_1ST_YEAR", label: "HSC 1st Year" },
   { value: "HSC_2ND_YEAR", label: "HSC 2nd Year" },
   { value: "HSC_FINAL_PREPARATION", label: "HSC Final Preparation" },
-  { value: "ADMISSION", label: "Admission" },
+  { value: "ADVANCED_ADMISSION", label: "Advanced Admission" },
+  { value: "ENGINEERING_AND_VARSITY_ADMISSION", label: "Engineering & Varsity Admission" },
 ] as const;
 
 export const paymentMethods = [

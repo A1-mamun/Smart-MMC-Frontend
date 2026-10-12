@@ -23,6 +23,7 @@ import {
   useGetStudentByIdQuery,
   useUpdateStudentMutation,
 } from "@/redux/features/student/student";
+import { useGetActivePpsQuery } from "@/redux/features/pp/pp.api";
 import { bloodGroups } from "@/constants/bloodGroups";
 import { educationBoards } from "@/constants/boards";
 import { formatBloodGroupLabel, formatBoardLabel } from "@/constants/labels";
@@ -82,9 +83,24 @@ const schema = z.object({
     .nullable(),
   sscPassingYear: z.number().min(2010).max(new Date().getFullYear()).optional().nullable(),
   sscGpa: z.number().min(0).max(5).optional().nullable(),
+  // PP (referral) linkage — mirrors the admit form. Both
+  // optional. Cross-field rule (positive ppFee requires ppId) is
+  // enforced server-side by `updateStudentSchema.refine` so the
+  // client doesn't need to duplicate the check.
+  ppId: z.string().nullable().optional(),
+  ppFee: z.coerce.number().min(0).nullable().optional(),
 });
 
-type FormData = z.infer<typeof schema>;
+// `z.coerce.number()` widens the input to `unknown` so the user
+// can type a numeric string in the form. RHF's zodResolver is
+// strict about input vs output types when they diverge, so we
+// thread the input type into `useForm` and keep the output
+// type for the submit handler. `FormData` aliases the output
+// so existing call sites (defaultValues, onSubmit, etc.) keep
+// working with `number` not `unknown`.
+type FormInput = z.input<typeof schema>;
+type FormOutput = z.output<typeof schema>;
+type FormData = FormOutput;
 
 type Props = {
   studentId: string;
@@ -96,13 +112,27 @@ const EditStudentForm = ({ studentId }: Props) => {
   const [updateStudent, { isLoading: updating }] = useUpdateStudentMutation();
   const [submitting, setSubmitting] = useState(false);
 
+  // Active PP list — same source as the admit form so the picker
+  // and the displayed names stay in sync. PPs are admin-curated
+  // and soft-deleted on the PP module; we only ever show the
+  // non-archived ones here.
+  const { data: ppsData } = useGetActivePpsQuery();
+  // Tolerate the admit form's `data.data` shape, but fall back to
+  // a bare array in case the API ever changes the wrapper.
+  const pps: { id: string; name: string }[] = Array.isArray(ppsData)
+    ? ppsData
+    : Array.isArray((ppsData as { data?: unknown })?.data)
+      ? ((ppsData as { data: { id: string; name: string }[] }).data)
+      : [];
+
   const {
     register,
     handleSubmit,
     control,
     reset,
+    watch,
     formState: { errors, isDirty },
-  } = useForm<FormData, any, FormData>({
+  } = useForm<FormInput, unknown, FormOutput>({
     resolver: zodResolver(schema),
     defaultValues: {
       name: "",
@@ -126,6 +156,10 @@ const EditStudentForm = ({ studentId }: Props) => {
       // empty input without flagging it as invalid.
       sscPassingYear: undefined,
       sscGpa: undefined,
+      // PP linkage — start cleared; hydration below repopulates
+      // from the loaded student row.
+      ppId: null,
+      ppFee: null,
     },
   });
 
@@ -157,6 +191,12 @@ const EditStudentForm = ({ studentId }: Props) => {
       sscBoard: s.sscBoard ?? undefined,
       sscPassingYear: s.sscPassingYear ?? undefined,
       sscGpa: s.sscGpa == null ? undefined : Number(s.sscGpa),
+      // PP linkage. Prefer the populated `pp.id` from the include;
+      // fall back to the bare `ppId` FK in case the include was
+      // ever dropped. `ppFee` comes as a Decimal string from
+      // Prisma — coerce through Number for the form's input.
+      ppId: s.pp?.id ?? s.ppId ?? null,
+      ppFee: s.ppFee == null ? null : Number(s.ppFee),
     });
   }, [data, reset]);
 
@@ -194,6 +234,13 @@ const EditStudentForm = ({ studentId }: Props) => {
         sscBoard: formData.sscBoard || null,
         sscPassingYear: numBlankToNull(formData.sscPassingYear),
         sscGpa: numBlankToNull(formData.sscGpa),
+        // PP linkage — same shape as admit. Send `ppId` verbatim
+        // (string or null) and `ppFee` as a number-or-null. The
+        // backend's `updateStudentSchema.refine` rejects a
+        // positive `ppFee` with a null `ppId` so admins can't
+        // orphan a commission by mistake.
+        ppId: formData.ppId ?? null,
+        ppFee: numBlankToNull(formData.ppFee),
       };
       await updateStudent({ id: studentId, data }).unwrap();
       toast.success("Student updated");
@@ -214,6 +261,13 @@ const EditStudentForm = ({ studentId }: Props) => {
       </div>
     );
   }
+
+  // PP-fee input is only shown when a PP is actually selected, to
+  // mirror the admit form and avoid leaving a fee field with no
+  // referrer attached.
+  const selectedPpId = watch("ppId");
+  const ppIdSelected =
+    typeof selectedPpId === "string" && selectedPpId.length > 0;
 
   console.log("student data", data.data);
 
@@ -317,6 +371,89 @@ const EditStudentForm = ({ studentId }: Props) => {
               </p>
             )}
           </div>
+
+          {/* PP (referrer) — mirrors the admit form. The fee field
+              is only shown when a PP is selected; clearing the
+              picker hides the fee too so a stale fee can't ride
+              along after the referrer is removed. */}
+          <div className="space-y-2">
+            <Label>PP (referrer)</Label>
+            <Controller
+              control={control}
+              name="ppId"
+              render={({ field }) => (
+                <Select
+                  onValueChange={(v) =>
+                    field.onChange(v === "__none__" ? null : v)
+                  }
+                  value={field.value ?? "__none__"}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="No PP" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— No PP —</SelectItem>
+                    {pps.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            {errors.ppId && (
+              <p className="text-sm text-destructive">
+                {errors.ppId.message as string}
+              </p>
+            )}
+          </div>
+          {ppIdSelected && (
+            <div className="space-y-2">
+              <Label htmlFor="ppFee">PP Fee (৳)</Label>
+              <Controller
+                control={control}
+                name="ppFee"
+                render={({ field }) => (
+                  <Input
+                    id="ppFee"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="e.g. 500"
+                    // z.coerce.number() makes the schema's input
+                    // type `unknown`, so the Controller field's
+                    // value is `unknown` here — coerce to a number
+                    // (or empty string for empty input) for the
+                    // controlled input.
+                    value={
+                      field.value === null || field.value === undefined
+                        ? ""
+                        : typeof field.value === "number"
+                          ? field.value
+                          : typeof field.value === "string"
+                            ? field.value
+                            : ""
+                    }
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === "") {
+                        field.onChange(null);
+                        return;
+                      }
+                      const n = Number(raw);
+                      field.onChange(Number.isFinite(n) ? n : null);
+                    }}
+                  />
+                )}
+              />
+              {errors.ppFee && (
+                <p className="text-sm text-destructive">
+                  {errors.ppFee.message as string}
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="space-y-2 md:col-span-2">
             <Label htmlFor="college">College</Label>

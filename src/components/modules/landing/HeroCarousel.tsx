@@ -92,19 +92,22 @@ const HeroCarousel = () => {
   if (isLoading) {
     return (
       <section className="relative overflow-hidden">
-        <Skeleton className="h-[540px] w-full sm:h-[640px] lg:h-[750px]" />
+        <Skeleton className="h-[540px] w-full sm:h-[640px] lg:h-[700px]" />
       </section>
     );
   }
 
   return (
-    <section ref={sectionRef} className="relative overflow-hidden">
-      <div className="relative h-[540px] sm:h-[640px] lg:h-[750px]">
+    <section
+      ref={sectionRef}
+      className="relative overflow-hidden container mx-auto px-4 py-5 rounded-2xl"
+    >
+      <div className="relative h-[540px] sm:h-[640px] lg:h-[700px] rounded-2xl">
         {banners.map((banner, index) => (
           <div
             key={banner.id}
             className={cn(
-              "absolute inset-0 transition-opacity duration-700 ease-in-out",
+              "absolute inset-0 transition-opacity duration-700 ease-in-out rounded-2xl",
               index === active ? "opacity-100" : "opacity-0",
             )}
           >
@@ -114,11 +117,11 @@ const HeroCarousel = () => {
               fill
               priority={index === 0}
               sizes="100vw"
-              className="object-cover"
+              className="object-cover rounded-2xl"
             />
             {/* Bottom gradient so the optional caption stays
                 readable; the rest of the image stays unaltered. */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-linear-to-t from-black/70 via-transparent to-transparent rounded-2xl" />
 
             {/* Optional caption — the only text on the slide. Only
                 rendered when the admin provided one. */}

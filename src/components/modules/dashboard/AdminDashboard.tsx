@@ -9,6 +9,10 @@ import {
   Activity,
   Gift,
   UserX,
+  GraduationCap,
+  TrendingUp,
+  HandCoins,
+  CircleDollarSign,
 } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,13 +32,23 @@ import {
 import { Button } from "@/components/ui/button";
 import StatCard from "./StatCard";
 import { useGetAdminDashboardQuery } from "@/redux/features/dashboard/dashboard";
-import { useGetAdmissionComparisonQuery, useGetCollectionTrendQuery, useGetPaymentMethodBreakdownQuery } from "@/redux/features/stats/stats";
+import {
+  useGetAdmissionComparisonQuery,
+  useGetCollectionTrendQuery,
+  useGetPaymentMethodBreakdownQuery,
+  useGetOngoingCoursesStatQuery,
+} from "@/redux/features/stats/stats";
 import { useGetAttendanceStatsQuery } from "@/redux/features/attendance/attendance";
 import { TActivityLog } from "@/types/activityLog";
-import { formatBatchLabel } from "@/constants/labels";
+import { formatBatchLabel, formatCourseLabel } from "@/constants/labels";
+import { useAppSelector } from "@/redux/hooks";
+import { useCurrentUser } from "@/redux/features/auth/authSlice";
+import { TOngoingCourseStat } from "@/types/stats";
 import dayjs from "dayjs";
 
 const PIE_COLORS = ["#fa7604", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6"];
+
+const fmtTk = (n: number) => `৳${n.toLocaleString()}`;
 
 const AdminDashboard = () => {
   const { data, isLoading } = useGetAdminDashboardQuery(undefined, {
@@ -52,6 +66,14 @@ const AdminDashboard = () => {
   const { data: attendanceStats } = useGetAttendanceStatsQuery(undefined, {
     refetchOnMountOrArgChange: true,
   });
+  // Per-ONGOING-course aggregate: student count for every admin;
+  // totalEarned / ppFeeTotal / netProfit for SUPER_ADMIN only (gated
+  // server-side). Used to render the "Ongoing Courses" card grid.
+  const { data: ongoingCourses } = useGetOngoingCoursesStatQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
+  const currentUser = useAppSelector(useCurrentUser);
+  const isSuperAdmin = currentUser?.role === "SUPER_ADMIN";
 
   if (isLoading || !data?.data) {
     return (
@@ -212,6 +234,97 @@ const AdminDashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Ongoing Courses</CardTitle>
+          {isSuperAdmin && (
+            <span className="text-xs text-muted-foreground">
+              Earned − PP commission = net per course
+            </span>
+          )}
+        </CardHeader>
+        <CardContent>
+          {ongoingCourses?.data && ongoingCourses.data.length > 0 ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {ongoingCourses.data.map((c: TOngoingCourseStat) => (
+                <div
+                  key={c.id}
+                  className="rounded-md border bg-card p-4 space-y-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-semibold leading-tight">
+                        {formatCourseLabel(c.name)}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {formatBatchLabel(c.hscBatch)} · Fee {fmtTk(c.fee)}
+                      </p>
+                    </div>
+                    <div className="rounded-md bg-primary/10 p-2 text-primary shrink-0">
+                      <GraduationCap className="h-4 w-4" />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">
+                      Students
+                    </span>
+                    <span className="ml-auto text-lg font-bold">
+                      {c.studentCount}
+                    </span>
+                  </div>
+
+                  {isSuperAdmin && (
+                    <div className="space-y-1.5 border-t pt-3">
+                      <div className="flex items-center gap-2 text-sm">
+                        <CircleDollarSign className="h-4 w-4 text-emerald-600" />
+                        <span className="text-muted-foreground">Earned</span>
+                        <span className="ml-auto font-medium">
+                          {fmtTk(c.totalEarned)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <HandCoins className="h-4 w-4 text-amber-600" />
+                        <span className="text-muted-foreground">PP fee</span>
+                        <span className="ml-auto font-medium">
+                          {fmtTk(c.ppFeeTotal)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm border-t pt-1.5">
+                        <TrendingUp
+                          className={
+                            "h-4 w-4 " +
+                            (c.netProfit >= 0
+                              ? "text-emerald-600"
+                              : "text-destructive")
+                          }
+                        />
+                        <span className="text-muted-foreground">Net</span>
+                        <span
+                          className={
+                            "ml-auto font-semibold " +
+                            (c.netProfit >= 0
+                              ? "text-emerald-600"
+                              : "text-destructive")
+                          }
+                        >
+                          {fmtTk(c.netProfit)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No ongoing courses right now.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

@@ -4,6 +4,7 @@ import {
   TBatchCourseStat,
   TCollectionTrendPoint,
   TPaymentMethodBreakdown,
+  TOngoingCourseStat,
 } from "@/types/stats";
 import { TApiResponse } from "@/types/common";
 
@@ -21,6 +22,9 @@ const statsApi = baseApi.injectEndpoints({
     getPaymentMethodBreakdown: build.query<TApiResponse<TPaymentMethodBreakdown[]>, void>({
       query: () => ({ url: "/stats/payment-method", method: "GET" }),
     }),
+    getOngoingCoursesStat: build.query<TApiResponse<TOngoingCourseStat[]>, void>({
+      query: () => ({ url: "/stats/ongoing-courses", method: "GET" }),
+    }),
   }),
 });
 
@@ -29,4 +33,5 @@ export const {
   useGetBatchCourseStatsQuery,
   useGetCollectionTrendQuery,
   useGetPaymentMethodBreakdownQuery,
+  useGetOngoingCoursesStatQuery,
 } = statsApi;

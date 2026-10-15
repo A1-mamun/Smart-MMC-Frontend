@@ -17,12 +17,31 @@ type SectionInput = {
   position?: number;
 };
 
+/**
+ * Per-exam weekly schedule slot — mirrors the backend
+ * `ExamSchedule` shape. Sent on create + update; omitting
+ * the field on update leaves the existing list untouched.
+ */
+type ExamScheduleInput = {
+  id?: string;
+  name?: string;
+  days: string[];
+  times: string[];
+  durationMinutes: number;
+};
+
 type CreateExamInput = {
   title: string;
   syllabus: string;
   examDate: string;
+  // Wall-clock window. `null` / undefined means "date
+  // only"; the kiosk renders the exam without a precise
+  // time indicator.
+  startTime?: string | null;
+  endTime?: string | null;
   courseId: string;
   sections: SectionInput[];
+  examSchedules?: ExamScheduleInput[];
 };
 
 type UpdateExamInput = Partial<CreateExamInput>;

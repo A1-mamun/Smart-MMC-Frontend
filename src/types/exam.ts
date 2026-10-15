@@ -20,15 +20,39 @@ export type TExam = {
   title: string;
   syllabus: string;
   examDate: string;
+  // Wall-clock window. `null` / undefined = "date only".
+  // The kiosk uses these to compute "Happening now" /
+  // "Starts in MM min" indicators.
+  startTime?: string | null;
+  endTime?: string | null;
   courseId: string;
   course?: TCourseLite;
   totalMarks: number;
   isResultPublished: boolean;
   publishedAt?: string | null;
   sections: TExamSection[];
+  // Optional weekly schedule rows. Mirrors the backend
+  // `ExamSchedule` model. The exam creation form
+  // (`ExamFormModal`) lets admins add/remove these; the
+  // kiosk renders the daily slots from them.
+  schedules?: TExamSchedule[];
   createdAt: string;
   updatedAt?: string;
   _count?: { results?: number; sections?: number };
+};
+
+/**
+ * Per-exam weekly schedule row — mirrors the backend
+ * `ExamSchedule` model. Days/times parallel arrays
+ * (length MUST match); the kiosk renders one row per
+ * day-time pair.
+ */
+export type TExamSchedule = {
+  id: string;
+  name: string | null;
+  days: string[];
+  times: string[];
+  durationMinutes: number;
 };
 
 export type TRosterSectionMark = {
@@ -167,3 +191,4 @@ export type TMyUpcomingExam = {
   sectionCount: number;
   sections: TMyUpcomingExamSection[];
 };
+

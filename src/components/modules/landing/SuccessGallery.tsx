@@ -71,17 +71,14 @@ const SuccessGallery = () => {
               // no text. The pulsing muted background gives the user
               // something to look at while the data loads.
               Array.from({ length: SKELETON_CARD_COUNT }).map((_, i) => (
-                <Skeleton
-                  key={i}
-                  className="aspect-[3/4] w-full rounded-2xl"
-                />
+                <Skeleton key={i} className="aspect-3/4 w-full rounded-2xl" />
               ))
             : students.map((student) => (
                 <div
                   key={student.id}
                   className="group relative overflow-hidden rounded-2xl border bg-card shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
                 >
-                  <div className="relative aspect-[3/4]">
+                  <div className="relative aspect-3/4">
                     <Image
                       src={student.imageUrl}
                       alt={student.name}
@@ -89,7 +86,7 @@ const SuccessGallery = () => {
                       sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                       className="object-cover transition duration-500 group-hover:scale-105"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+                    <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/10 to-transparent" />
                     <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
                       <p className="text-sm font-semibold leading-tight">
                         {student.name}

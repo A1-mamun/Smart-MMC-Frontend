@@ -12,12 +12,10 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { courseNames } from "@/constants/courseNames";
-import {
-  DEFAULT_INSTRUCTOR_SECTION,
-  TInstructorStat,
-} from "@/types/settings";
+import { DEFAULT_INSTRUCTOR_SECTION, TInstructorStat } from "@/types/settings";
 import { useGetInstructorSectionQuery } from "@/redux/features/settings/settings";
-import teacherImage from "public/images/teacher-mmc.jpeg";
+import CountUp from "react-countup";
+import teacherImage from "@public/images/teacher-mmc.jpeg";
 
 /**
  * Pick a Lucide icon for each course so the bullet grid has
@@ -37,6 +35,36 @@ const COURSE_ICONS: Record<(typeof courseNames)[number]["value"], typeof Atom> =
     ADVANCED_ADMISSION: Sparkles,
     ENGINEERING_AND_VARSITY_ADMISSION: Wrench,
   };
+
+/**
+ * Parse a stat value string into the parts `react-countup` needs.
+ * Handles:
+ *   "10+"        → { end: 10,  suffix: "+",   decimals: 0 }
+ *   "10000+"     → { end: 10000, suffix: "+", decimals: 0 }
+ *   "1.5K"       → { end: 1.5, suffix: "K",   decimals: 1 }
+ *   "4.9"        → { end: 4.9, suffix: "",    decimals: 1 }
+ *   "Best in BD" → null  (no leading number — render verbatim)
+ *
+ * `prefix` captures any leading non-digit characters (e.g. "$",
+ * "৳") so currency-style values survive. The admin form is
+ * free-form so the parse is defensive — commas are stripped
+ * before `Number()` so "1,000+" works too.
+ */
+function parseStatValue(value: string): {
+  end: number;
+  prefix: string;
+  suffix: string;
+  decimals: number;
+} | null {
+  const match = value.match(/^(\D*)([\d,]+(?:\.\d+)?)(.*)$/);
+  if (!match) return null;
+  const [, prefix, numStr, suffix] = match;
+  const end = Number(numStr.replace(/,/g, ""));
+  if (!Number.isFinite(end)) return null;
+  const dotIdx = numStr.indexOf(".");
+  const decimals = dotIdx === -1 ? 0 : numStr.length - dotIdx - 1;
+  return { end, prefix, suffix, decimals };
+}
 
 const InstructorSection = () => {
   /*
@@ -65,7 +93,7 @@ const InstructorSection = () => {
   // server response is treated identically to `null`.
   const quote: string | null =
     serverQuote === undefined
-      ? DEFAULT_INSTRUCTOR_SECTION.quote ?? null
+      ? (DEFAULT_INSTRUCTOR_SECTION.quote ?? null)
       : serverQuote;
 
   return (
@@ -160,19 +188,46 @@ const InstructorSection = () => {
                         <Skeleton className="mx-auto mt-2 h-3 w-24" />
                       </div>
                     ))
-                  : stats.map((stat) => (
-                      <div
-                        key={`${stat.value}-${stat.label}`}
-                        className="rounded-xl border bg-background p-4 text-center"
-                      >
-                        <div className="text-2xl font-bold text-primary">
-                          {stat.value}
+                  : stats.map((stat) => {
+                      const parsed = parseStatValue(stat.value);
+                      return (
+                        <div
+                          key={`${stat.value}-${stat.label}`}
+                          className="rounded-xl border bg-background p-4 text-center"
+                        >
+                          {/* The number animates 0 → target the first
+                              time the section scrolls into view.
+                              `react-countup` needs `end` as a number,
+                              so we parse the leading integer out of
+                              the admin-supplied string and re-attach
+                              the prefix / suffix after. Non-numeric
+                              values (e.g. "N/A") fall through to a
+                              plain text render — no animation, no
+                              crash. */}
+                          <div className="text-2xl font-bold text-primary tabular-nums">
+                            {parsed ? (
+                              <CountUp
+                                end={parsed.end}
+                                duration={1.4}
+                                decimals={parsed.decimals}
+                                prefix={parsed.prefix}
+                                suffix={parsed.suffix}
+                                enableScrollSpy
+                                scrollSpyOnce
+                                // `useEasing` defaults to true; the
+                                // default easeOutExpo lands softly
+                                // on big numbers like "10000+".
+                              />
+                            ) : (
+                              stat.value
+                            )}
+                          </div>
+                          <div className="mt-1 text-xs font-medium text-muted-foreground">
+                            {stat.label}
+                          </div>
                         </div>
-                        <div className="mt-1 text-xs font-medium text-muted-foreground">
-                          {stat.label}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
               </div>
             </div>
 

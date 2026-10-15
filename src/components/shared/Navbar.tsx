@@ -19,11 +19,7 @@ import { cn } from "@/lib/utils";
 import type { TUserRole } from "@/types/user";
 import ThemeLogo from "./ThemeLogo";
 import ThemeToggle from "./ThemeToggle";
-import {
-  Sheet,
-  SheetContent,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 /**
  * Centered navbar with three columns:
@@ -172,7 +168,7 @@ const Navbar = () => {
         {/* Left — logo */}
         <Link
           href="/"
-          className="flex shrink-0 items-center"
+          className="flex shrink-0 items-center -ml-5"
           aria-label="Home"
         >
           <ThemeLogo height={200} priority />
@@ -203,12 +199,12 @@ const Navbar = () => {
           {user ? (
             <>
               {/*
-                * Dashboard quick-link on the right rail — same
-                * gate as the centered nav item (only shown when
-                * the user actually has a dashboard). Hidden on
-                * mobile to keep the row narrow; the centered
-                * nav / hamburger covers mobile.
-                */}
+               * Dashboard quick-link on the right rail — same
+               * gate as the centered nav item (only shown when
+               * the user actually has a dashboard). Hidden on
+               * mobile to keep the row narrow; the centered
+               * nav / hamburger covers mobile.
+               */}
               {user.role !== "STUDENT" && (
                 <Button
                   variant="ghost"
@@ -304,10 +300,7 @@ const Navbar = () => {
                       asChild
                       className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
                     >
-                      <Link
-                        href="/signin"
-                        onClick={() => setMobileOpen(false)}
-                      >
+                      <Link href="/signin" onClick={() => setMobileOpen(false)}>
                         Sign In
                       </Link>
                     </Button>
